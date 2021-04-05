@@ -40,7 +40,7 @@
 					|  $$$$$$/
 					 \______/
 
-		Copyright KeyAuth ©. Use of this code in anything besides
+		Copyright KeyAuth Â©. Use of this code in anything besides
 		your c++ application that connects to KeyAuth is prohibited.
 */
 
@@ -447,6 +447,43 @@ namespace KeyAuth {
 			{
 				// optional success message. Make sure to string encrypt for security
 				load_user_data(json[("info")]);
+			}
+			else
+			{
+				std::cout << XorStr("\n\n Status: Failure: ");
+				std::cout << std::string(json[("message")]);
+			}
+			lw_http.close_session();
+		}
+
+		std::string var(std::string varid) {
+			std::string hwid = utils::get_hwid();
+			auto iv = encryption::sha256(encryption::iv_key());
+			c_lw_http	lw_http;
+			c_lw_httpd	lw_http_d;
+
+			if (!lw_http.open_session())
+				MessageBoxA(0, "fail", "ret", 0);
+
+			std::string s_reply;
+
+			lw_http_d.add_field(PCHAR("type"), encryption::encode(XorStr("var").c_str()).c_str());
+			lw_http_d.add_field(PCHAR("key"), encryption::encrypt(user_data.key, secret, iv).c_str());
+			lw_http_d.add_field(PCHAR("varid"), encryption::encrypt(varid, secret, iv).c_str());
+			lw_http_d.add_field(PCHAR("hwid"), encryption::encrypt(hwid, secret, iv).c_str());
+
+			lw_http_d.add_field(PCHAR("name"), encryption::encode(name).c_str());
+			lw_http_d.add_field(PCHAR("ownerid"), encryption::encode(ownerid).c_str());
+			lw_http_d.add_field(PCHAR("init_iv"), iv.c_str());
+
+			const auto b_lw_http = lw_http.post(L"https://keyauth.com/api/v7/", s_reply, lw_http_d);
+			s_reply = encryption::decrypt(s_reply, secret, iv);
+			// MessageBoxA(0, s_reply.c_str(), s_reply.c_str(), 0);
+			auto json = response_decoder.parse(s_reply);
+
+			if (json[("success")])
+			{
+				return json[("message")];;
 			}
 			else
 			{
