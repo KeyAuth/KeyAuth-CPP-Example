@@ -295,7 +295,7 @@ namespace KeyAuth {
 			else if (json[("message")] == "invalidver")
 			{
 				std::string dl = json[("download")];
-				//ShellExecuteA(0, "open", dl.c_str(), 0, 0, SW_SHOWNORMAL);
+				ShellExecuteA(0, "open", dl.c_str(), 0, 0, SW_SHOWNORMAL);
 				exit(0);
 			}
 			else
