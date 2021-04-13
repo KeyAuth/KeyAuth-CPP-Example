@@ -10,6 +10,7 @@
 
 #include <atlsecurity.h> 
 #include <windows.h>
+#include <ShellAPI.h>
 #include <string>
 #include <stdio.h>
 #include <iostream>
