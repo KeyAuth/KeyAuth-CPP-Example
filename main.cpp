@@ -45,6 +45,7 @@ int main()
 			std::cout << XorStr("\n Enter password: ");
 			std::cin >> password;
 			KeyAuthApp.login(username, password);
+			break;
 		case 2:
 			std::cout << XorStr("\n\n Enter username: ");
 			std::cin >> username;
@@ -53,16 +54,19 @@ int main()
 			std::cout << XorStr("\n Enter license: ");
 			std::cin >> key;
 			KeyAuthApp.regstr(username,password,key);
+			break;
 		case 3:
 			std::cout << XorStr("\n\n Enter username: ");
 			std::cin >> username;
 			std::cout << XorStr("\n Enter license: ");
 			std::cin >> key;
 			KeyAuthApp.upgrade(username, key);
+			break;
 		case 4:
 			std::cout << XorStr("\n Enter license: ");
 			std::cin >> key;
 			KeyAuthApp.license(key);
+			break;
 		default:
 			std::cout << XorStr("\n\n Status: Failure: Invalid Selection");
 			Sleep(3000);
