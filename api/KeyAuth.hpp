@@ -344,6 +344,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3000);
+				exit(0);
 			}
 			lw_http.close_session();
 		}
@@ -381,6 +383,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3000);
+				exit(0);
 			}
 			lw_http.close_session();
 		}
@@ -416,6 +420,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3000);
+				exit(0);
 			}
 			lw_http.close_session();
 		}
@@ -453,6 +459,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3000);
+				exit(0);
 			}
 			lw_http.close_session();
 		}
@@ -490,6 +498,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3000);
+				exit(0);
 			}
 			lw_http.close_session();
 		}
