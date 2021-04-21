@@ -63,6 +63,10 @@ int main()
 			std::cout << XorStr("\n Enter license: ");
 			std::cin >> key;
 			KeyAuthApp.license(key);
+		default:
+			std::cout << XorStr("\n\n Status: Failure: Invalid Selection");
+			Sleep(3000);
+			exit(0);
 	}
 
 	/*
