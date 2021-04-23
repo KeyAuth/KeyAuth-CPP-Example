@@ -10,7 +10,7 @@ std::string tm_to_readable_time(tm ctx);
 /*
 *
 *
-* WATCH THIS VIDEO FOR SETUP TUTORIAL: https://youtube.com/watch?v=Uh84xRBYSB0
+* WATCH THIS VIDEO FOR SETUP TUTORIAL: https://youtube.com/watch?v=uJ0Umy_C6Fg
 * DO NOT CONTACT DISMAIL WITHOUT WATCHING VIDEO FIRST
 *
 */
