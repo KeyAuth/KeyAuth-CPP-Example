@@ -516,14 +516,25 @@ namespace KeyAuth {
 
 			lw_http_d.add_field(PCHAR("type"), encryption::encode(XorStr("file").c_str()).c_str());
 			lw_http_d.add_field(PCHAR("fileid"), encryption::encrypt(fileid, secret, iv).c_str());
+			lw_http_d.add_field(PCHAR("key"), encryption::encrypt(user_data.key, secret, iv).c_str());
+			lw_http_d.add_field(PCHAR("hwid"), encryption::encrypt(hwid, secret, iv).c_str());
 
 			lw_http_d.add_field(PCHAR("name"), encryption::encode(name).c_str());
 			lw_http_d.add_field(PCHAR("ownerid"), encryption::encode(ownerid).c_str());
 			lw_http_d.add_field(PCHAR("init_iv"), iv.c_str());
 
-			const auto b_lw_http = lw_http.post(L"https://keyauth.com/api/v3/", s_reply, lw_http_d);
-			// s_reply = encryption::decrypt(s_reply, secret, iv); // RAW file
-			std::printf("%x", s_reply.size());
+			const auto b_lw_http = lw_http.post(L"https://keyauth.com/api/v9/", s_reply, lw_http_d);
+            		s_reply = encryption::decrypt(s_reply, secret, iv); // RAW file
+			
+			if (s_reply.length() < 50)
+            		{
+               		auto json = response_decoder.parse(s_reply);
+                	std::cout << XorStr("\n\n Status: Failure: ");
+                	std::cout << std::string(json[("message")]);
+                	Sleep(3000);
+                	exit(-1);
+	            	}
+			
 			if (memory)
 			{
 				ape = (unsigned char*)s_reply.data();
