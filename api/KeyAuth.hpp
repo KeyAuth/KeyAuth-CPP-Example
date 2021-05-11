@@ -506,6 +506,7 @@ namespace KeyAuth {
 
 		bool Memory(std::string fileid, std::string output = XorStr("same.exe").c_str(), bool memory = false, unsigned char* ape = 0x00) {
 			auto iv = encryption::sha256(encryption::iv_key());
+			std::string hwid = utils::get_hwid();
 			c_lw_http    lw_http;
 			c_lw_httpd    lw_http_d;
 
