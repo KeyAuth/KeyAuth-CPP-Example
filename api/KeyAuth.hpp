@@ -8,7 +8,7 @@
 #include <cryptopp/hex.h>
 #include <cryptopp/ccm.h>
 
-#include <curl.h>
+#include <curl/curl.h>
 
 #include <atlsecurity.h> 
 #include <windows.h>
