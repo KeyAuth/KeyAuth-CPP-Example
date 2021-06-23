@@ -5,7 +5,6 @@
 #include <fstream>
 #include <filesystem>
 using namespace KeyAuth;
-std::string tm_to_readable_time(tm ctx);
 
 /*
 *
@@ -26,7 +25,7 @@ int main()
 {
 	SetConsoleTitleA(XorStr("Loader").c_str());
 	std::cout << XorStr("\n\n Connecting..");
-	KeyAuthApp.init(); // required
+	KeyAuthApp.init();
 	system(XorStr("cls").c_str());
 	
 	std::cout << XorStr("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
@@ -73,18 +72,5 @@ int main()
 			exit(0);
 	}
 
-	/*
-	KeyAuthApp.Memory("231696", "C:\\Users\\mak\\Downloads\\keyauth_example\\x64\\Release\\DLL.dll"); // download file to disk
-	KeyAuthApp.Memory("231696", NULL, true); // download file to byte array
-	*/
-
 	Sleep(-1); // this is to keep your application open for test purposes. it pauses your application forever, remove this when you want.
-}
-
-std::string tm_to_readable_time(tm ctx) {
-	char buffer[25];
-
-	strftime(buffer, sizeof(buffer), "%m/%d/%y", &ctx);
-
-	return std::string(buffer);
 }
