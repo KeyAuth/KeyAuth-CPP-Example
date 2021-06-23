@@ -512,7 +512,7 @@ namespace KeyAuth {
 			curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
 			curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
 
-			curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "sha256//UjJQOuTpgenjm6zOasOClsM8Ua6m6IJ09jzwC6YYDh0=");
+			curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "zaXl1uxtEA6FAR8KKoew4FYX+X3Khlfd/zjVD+SdMpc=");
 
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
 
