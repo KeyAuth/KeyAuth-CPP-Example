@@ -280,7 +280,37 @@ namespace KeyAuth {
 				std::cout << std::string(json[("message")]);
 			}
 		}
+		
+		void regstr(std::string username, std::string password, std::string key) {
 
+			std::string hwid = utils::get_hwid();
+			auto iv = encryption::sha256(encryption::iv_key());
+			auto data =
+				XorStr("type=").c_str() + encryption::encode("register") +
+				XorStr("&username=").c_str() + encryption::encrypt(username, enckey, iv) +
+				XorStr("&pass=").c_str() + encryption::encrypt(password, enckey, iv) +
+				XorStr("&key=").c_str() + encryption::encrypt(key, enckey, iv) +
+				XorStr("&hwid=").c_str() + encryption::encrypt(hwid, enckey, iv) +
+				XorStr("&sessionid=").c_str() + encryption::encode(sessionid) +
+				XorStr("&name=").c_str() + encryption::encode(name) +
+				XorStr("&ownerid=").c_str() + encryption::encode(ownerid) +
+				XorStr("&init_iv=").c_str() + iv;
+			auto response = req(data);
+			response = encryption::decrypt(response, enckey, iv);
+			auto json = response_decoder.parse(response);
+
+			if (json[("success")])
+			{
+				// optional success message
+				load_user_data(json[("info")]);
+			}
+			else
+			{
+				std::cout << XorStr("\n\n Status: Failure: ");
+				std::cout << std::string(json[("message")]);
+			}
+		}
+		
 		void upgrade(std::string username, std::string key) {
 
 			auto iv = encryption::sha256(encryption::iv_key());
