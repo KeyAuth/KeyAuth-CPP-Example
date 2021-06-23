@@ -1,7 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="sourcecode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="api">
@@ -13,5 +14,6 @@
       <Filter>api</Filter>
     </ClInclude>
     <ClInclude Include="xorstr.hpp" />
+    <ClInclude Include="main.h" />
   </ItemGroup>
 </Project>
