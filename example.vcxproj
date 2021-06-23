@@ -169,7 +169,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="sourcecode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="api\KeyAuth.hpp" />
