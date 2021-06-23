@@ -2,7 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="lw_http.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="api">
@@ -14,6 +13,5 @@
       <Filter>api</Filter>
     </ClInclude>
     <ClInclude Include="xorstr.hpp" />
-    <ClInclude Include="lw_http.hpp" />
   </ItemGroup>
 </Project>
