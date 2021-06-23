@@ -2,8 +2,8 @@
 KeyAuth CPP Example
 
 - Download Repository
-- Download and extract file https://files.catbox.moe/920j4m.zip to the repository folder
-- Add application info to main.cpp file
+- extract `libs.zip` so that there is a libs folder in your project. then you may delete `libs.zip` 
+- Add application info to main.cpp file, here is a video tutorial if needed: https://youtube.com/watch?v=uJ0Umy_C6Fg
 
 Then you are ready to compile!
 
