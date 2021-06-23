@@ -75,7 +75,7 @@
     <LinkIncremental>true</LinkIncremental>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
     <IncludePath>./libs/cryptopp/include;./libs/curl/include;./libs/openssl/include;./libs/json/include;$(IncludePath)</IncludePath>
-    <LibraryPath>./libs/cryptopp/lib/cryptopp-static.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>./libs/curl/lib/libcurl.lib;./libs/cryptopp/lib/cryptopp-static.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -84,14 +84,14 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>./libs/cryptopp/lib/cryptopp-static.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>./libs/curl/lib/libcurl.lib;./libs/cryptopp/lib/cryptopp-static.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;$(LibraryPath)</LibraryPath>
     <IncludePath>./libs/cryptopp/include;./libs/curl/include;./libs/openssl/include;./libs/json/include;$(IncludePath)</IncludePath>
     <IgnoreImportLibrary>false</IgnoreImportLibrary>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>./libs/cryptopp/include;./libs/openssl/include;./libs/json/include;$(IncludePath)</IncludePath>
-    <LibraryPath>./libs/cryptopp/lib/;./libs/openssl/lib;./libs/;$(LibraryPath)</LibraryPath>
+    <IncludePath>./libs/cryptopp/include;./libs/curl/include;./libs/openssl/include;./libs/json/include;$(IncludePath)</IncludePath>
+    <LibraryPath>./libs/curl/lib/;./libs/cryptopp/lib/;./libs/openssl/lib;./libs/;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -142,7 +142,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>./libs/cryptopp/lib/cryptopp-static.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;./libs/zlib.lib;Normaliz.lib;Ws2_32.lib;Wldap32.lib;Crypt32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>./libs/cryptopp/lib/cryptopp-static.lib;./libs/curl/lib/libcurl.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;./libs/zlib.lib;Normaliz.lib;Ws2_32.lib;Wldap32.lib;Crypt32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -163,15 +163,17 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <AdditionalDependencies>./libs/cryptopp/lib/cryptopp-static.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;./libs/zlib.lib;Normaliz.lib;Ws2_32.lib;Wldap32.lib;Crypt32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>./libs/cryptopp/lib/cryptopp-static.lib;./libs/curl/lib/libcurl.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;./libs/zlib.lib;Normaliz.lib;Ws2_32.lib;Wldap32.lib;Crypt32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="sourcecode.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="api\KeyAuth.hpp" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="xorstr.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
