@@ -8,29 +8,28 @@
 #include <cryptopp/hex.h>
 #include <cryptopp/ccm.h>
 
-#include <curl/curl.h>
-
 #include <atlsecurity.h> 
+#include <strsafe.h> 
 #include <windows.h>
 #include <string>
 #include <stdio.h>
 #include <iostream>
-#include <openssl/md5.h> 
+
+#include <curl/curl.h>
+
+#include <shellapi.h>
 
 #include <sstream> 
 #include <iomanip> 
-#include "xorstr.hpp"
+#include "../xorstr.hpp"
 #include <fstream> 
 
 #include <nlohmann/json.hpp>
 
 #pragma comment(lib, "rpcrt4.lib")
 
-#define BUFFSIZE 16384
-
-using namespace std;
-
 namespace KeyAuth {
+
 	class encryption {
 	public:
 		std::string name;
@@ -123,24 +122,24 @@ namespace KeyAuth {
 
 			return encoded_text;
 		}
-		
+
 		static std::string decode(const std::string& encoded_text) {
-            std::string out;
+			std::string out;
 
-            try{
-                CryptoPP::StringSource decoding(encoded_text, true, 
-                    new CryptoPP::HexDecoder(
-                        new CryptoPP::StringSink(out)
-                        )
-                    );
-            }
-            catch (CryptoPP::Exception& ex){
-                MessageBoxA(0, ex.what(), "cAuth", MB_ICONERROR);
-                exit(0);
-            }
+			try {
+				CryptoPP::StringSource decoding(encoded_text, true,
+					new CryptoPP::HexDecoder(
+						new CryptoPP::StringSink(out)
+					)
+				);
+			}
+			catch (CryptoPP::Exception& ex) {
+				MessageBoxA(0, ex.what(), "cAuth", MB_ICONERROR);
+				exit(0);
+			}
 
-            return out;
-        }
+			return out;
+		}
 
 		static std::string iv_key() {
 			UUID uuid = { 0 };
@@ -200,7 +199,10 @@ namespace KeyAuth {
 
 	};
 
+
+	auto iv = encryption::sha256(encryption::iv_key());
 	class api {
+
 
 	public:
 
@@ -209,9 +211,9 @@ namespace KeyAuth {
 		api(std::string name, std::string ownerid, std::string secret, std::string version)
 			: name(name), ownerid(ownerid), secret(secret), version(version) {}
 
-		void init() {
-			auto iv = encryption::sha256(encryption::iv_key());
-			auto enckey = encryption::sha256(encryption::iv_key());
+		void init()
+		{
+			enckey = encryption::sha256(encryption::iv_key());
 			if (ownerid.length() != 10 || secret.length() != 64)
 			{
 				std::cout << XorStr("\n\n Application Not Setup Correctly. Please Watch Video Linked in Main.cpp");
@@ -252,8 +254,8 @@ namespace KeyAuth {
 			}
 		}
 
-		void login(std::string username, std::string password) {
-
+		void login(std::string username, std::string password)
+		{
 			std::string hwid = utils::get_hwid();
 			auto iv = encryption::sha256(encryption::iv_key());
 			auto data =
@@ -278,9 +280,11 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3500);
+				exit(0);
 			}
 		}
-		
+
 		void regstr(std::string username, std::string password, std::string key) {
 
 			std::string hwid = utils::get_hwid();
@@ -308,9 +312,11 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3500);
+				exit(0);
 			}
 		}
-		
+
 		void upgrade(std::string username, std::string key) {
 
 			auto iv = encryption::sha256(encryption::iv_key());
@@ -335,6 +341,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3500);
+				exit(0);
 			}
 		}
 
@@ -351,7 +359,6 @@ namespace KeyAuth {
 				XorStr("&ownerid=").c_str() + encryption::encode(ownerid) +
 				XorStr("&init_iv=").c_str() + iv;
 			auto response = req(data);
-			std::cout << response;
 			response = encryption::decrypt(response, enckey, iv);
 			auto json = response_decoder.parse(response);
 
@@ -364,6 +371,8 @@ namespace KeyAuth {
 			{
 				std::cout << XorStr("\n\n Status: Failure: ");
 				std::cout << std::string(json[("message")]);
+				Sleep(3500);
+				exit(0);
 			}
 		}
 
@@ -412,35 +421,35 @@ namespace KeyAuth {
 
 			req(data);
 		}
-		
-        std::vector<unsigned char> download(std::string fileid){
+
+		std::vector<unsigned char> download(std::string fileid) {
 			auto iv = encryption::sha256(encryption::iv_key());
-            auto to_uc_vector = [](std::string value){
-                return std::vector<unsigned char>(value.data(), value.data() + value.length() + 1);
-            };
+			auto to_uc_vector = [](std::string value) {
+				return std::vector<unsigned char>(value.data(), value.data() + value.length() + 1);
+			};
 
-            auto data =
-                XorStr("type=").c_str() + encryption::encode("file") +
-                XorStr("&fileid=").c_str() + encryption::encrypt(fileid, enckey, iv) +
-                XorStr("&sessionid=").c_str() + encryption::encode(sessionid) +
-                XorStr("&name=").c_str() + encryption::encode(name) +
-                XorStr("&ownerid=").c_str() + encryption::encode(ownerid) +
-                XorStr("&init_iv=").c_str() + iv;
+			auto data =
+				XorStr("type=").c_str() + encryption::encode("file") +
+				XorStr("&fileid=").c_str() + encryption::encrypt(fileid, enckey, iv) +
+				XorStr("&sessionid=").c_str() + encryption::encode(sessionid) +
+				XorStr("&name=").c_str() + encryption::encode(name) +
+				XorStr("&ownerid=").c_str() + encryption::encode(ownerid) +
+				XorStr("&init_iv=").c_str() + iv;
 
-            auto response = req(data);
-            response = encryption::decrypt(response, enckey, iv);
-            auto json = response_decoder.parse(response);
+			auto response = req(data);
+			response = encryption::decrypt(response, enckey, iv);
+			auto json = response_decoder.parse(response);
 
-            if (!json["success"])
-            {
-                std::cout << XorStr("\n\n Status: Failure: ");
-                std::cout << std::string(json[("message")]);
-            }
-            
-            auto file = encryption::decode(json["contents"]);
+			if (!json["success"])
+			{
+				std::cout << XorStr("\n\n Status: Failure: ");
+				std::cout << std::string(json[("message")]);
+			}
 
-            return to_uc_vector(file);
-        }
+			auto file = encryption::decode(json["contents"]);
+
+			return to_uc_vector(file);
+		}
 
 		void webhook(std::string id, std::string params) {
 
@@ -472,23 +481,20 @@ namespace KeyAuth {
 		}
 
 
-
 		class user_data_class {
 		public:
 			std::string username;
-			//std::tm expiry;
-			// int level;
 		};
 
 		user_data_class user_data;
 
+	private:
 		std::string sessionid, enckey;
 
 		static size_t write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
 			((std::string*)userp)->append((char*)contents, size * nmemb);
 			return size * nmemb;
 		}
-
 
 		static std::string req(std::string data) {
 			CURL* curl = curl_easy_init();
@@ -520,19 +526,16 @@ namespace KeyAuth {
 
 			return to_return;
 		}
-		class user_data_structure
-		{
+
+		class user_data_structure {
 		public:
 			std::string username;
-			//std::string expiry;
-			//int level;
 		};
 
-		void load_user_data(nlohmann::json data)
-		{
+		void load_user_data(nlohmann::json data) {
+
 			user_data.username = data["username"];
-			//user_data.expiry = utils::timet_to_tm(utils::string_to_timet(data["expiry"]));
-			//user_data.level = data["level"];
+
 		}
 
 		nlohmann::json response_decoder;
