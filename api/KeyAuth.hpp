@@ -484,6 +484,8 @@ namespace KeyAuth {
 		class user_data_class {
 		public:
 			std::string username;
+			std::tm expiry;
+			std::string subscription;
 		};
 
 		user_data_class user_data;
@@ -530,12 +532,16 @@ namespace KeyAuth {
 		class user_data_structure {
 		public:
 			std::string username;
+			std::string expiry;
+			std::string subscription;
 		};
 
 		void load_user_data(nlohmann::json data) {
-
 			user_data.username = data["username"];
-
+			user_data.expiry = utils::timet_to_tm(
+				utils::string_to_timet(data["subscriptions"][0]["expiry"])
+			);
+			user_data.subscription = data["subscriptions"][0]["subscription"];
 		}
 
 		nlohmann::json response_decoder;
