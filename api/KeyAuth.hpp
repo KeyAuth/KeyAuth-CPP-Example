@@ -134,7 +134,8 @@ namespace KeyAuth {
 				);
 			}
 			catch (CryptoPP::Exception& ex) {
-				MessageBoxA(0, ex.what(), "cAuth", MB_ICONERROR);
+				system(XorStr("cls").c_str());
+				std::cout << ex.what();
 				exit(0);
 			}
 
