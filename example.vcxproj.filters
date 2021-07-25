@@ -13,6 +13,5 @@
       <Filter>api</Filter>
     </ClInclude>
     <ClInclude Include="xorstr.hpp" />
-    <ClInclude Include="main.h" />
   </ItemGroup>
 </Project>
