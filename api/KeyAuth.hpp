@@ -514,7 +514,9 @@ namespace KeyAuth {
 
 			curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
 			curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
-
+			
+			curl_easy_setopt(curl, CURLOPT_DNS_SERVERS, XorStr("1.1.1.1,1.0.0.1").c_str()); // resolve ISP blockage issues caused by false domain report https://github.com/mitchellkrogza/Phishing.Database/issues/194
+			
 			curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, "sha256//zaXl1uxtEA6FAR8KKoew4FYX+X3Khlfd/zjVD+SdMpc=");
 
 			curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
