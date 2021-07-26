@@ -336,7 +336,6 @@ namespace KeyAuth {
 			if (json[("success")])
 			{
 				// optional success message
-				load_user_data(json[("info")]);
 			}
 			else
 			{
