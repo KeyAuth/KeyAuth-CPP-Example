@@ -14,10 +14,10 @@ using namespace KeyAuth;
 *
 */
 
-std::string name = ("");
-std::string ownerid = ("");
-std::string secret = ("");
-std::string version = ("1.0");
+std::string name = XorStr(""); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+std::string ownerid = XorStr(""); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+std::string secret = XorStr(""); // app secret, the blurred text on licenses tab and other tabs
+std::string version = XorStr("1.0"); // leave alone unless you've changed version on website
 
 api KeyAuthApp(name, ownerid, secret, version);
 
@@ -71,6 +71,38 @@ int main()
 			Sleep(3000);
 			exit(0);
 	}
+	
+	/*
+	// download file
+    std::vector<std::uint8_t> bytes = KeyAuthApp.download("123456");
+    std::ofstream file("file.exe", std::ios_base::out | std::ios_base::binary);
+    file.write((char*)bytes.data(), bytes.size());
+    file.close();
+	*/
+	
+	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there too
+	// KeyAuthApp.webhook("HDb5HiwOSM", "&type=black&ip=1.1.1.1&hwid=abc"); // webhook request to securely send GET request to API, here's what it looks like on dashboard https://i.imgur.com/jW74Hwe.png
+	// KeyAuthApp.ban(); // ban the current user, must be logged in
 
+	#pragma region
+	time_t rawtime = mktime(&KeyAuthApp.user_data.expiry);
+	struct tm* timeinfo;
+	timeinfo = localtime(&rawtime);
+	printf(XorStr("\n Your Subscription Expires At: %s").c_str(), asctime(timeinfo));
+	
+	time_t currtime;
+	struct tm* tminfo;
+	time(&currtime);
+	tminfo = localtime(&currtime);
+
+	std::time_t x = std::mktime(tminfo);
+	std::time_t y = std::mktime(&KeyAuthApp.user_data.expiry);
+	if (x != (std::time_t)(-1) && y != (std::time_t)(-1))
+	{
+		double difference = std::difftime(y, x) / (60 * 60 * 24);
+		std::cout << "\n " << difference << " day(s) left" << std::endl;
+	}
+	#pragma endregion Display Expiration Date and Days Left Until Expiry
+	
 	Sleep(-1); // this is to keep your application open for test purposes. it pauses your application forever, remove this when you want.
 }

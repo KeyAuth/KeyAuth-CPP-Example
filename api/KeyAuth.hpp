@@ -376,6 +376,33 @@ namespace KeyAuth {
 			}
 		}
 
+		void ban() {
+
+			auto iv = encryption::sha256(encryption::iv_key());
+			std::string hwid = utils::get_hwid();
+			auto data =
+				XorStr("type=").c_str() + encryption::encode("ban") +
+				XorStr("&sessionid=").c_str() + encryption::encode(sessionid) +
+				XorStr("&name=").c_str() + encryption::encode(name) +
+				XorStr("&ownerid=").c_str() + encryption::encode(ownerid) +
+				XorStr("&init_iv=").c_str() + iv;
+			auto response = req(data);
+			response = encryption::decrypt(response, enckey, iv);
+			auto json = response_decoder.parse(response);
+
+			if (json[("success")])
+			{
+				// optional success message
+			}
+			else
+			{
+				std::cout << XorStr("\n\n Status: Failure: ");
+				std::cout << std::string(json[("message")]);
+				Sleep(3500);
+				exit(0);
+			}
+		}
+
 		std::string var(std::string varid) {
 
 			auto iv = encryption::sha256(encryption::iv_key());
@@ -410,7 +437,7 @@ namespace KeyAuth {
 			GetUserNameA(acUserName, &nUserName);
 			std::string UsernamePC = acUserName;
 
-			std::string data =
+			auto data =
 				XorStr("type=").c_str() + encryption::encode(XorStr("log").c_str()) +
 				XorStr("&pcuser=").c_str() + encryption::encrypt(UsernamePC, enckey, iv) +
 				XorStr("&message=").c_str() + encryption::encrypt(message, enckey, iv) +
@@ -454,19 +481,22 @@ namespace KeyAuth {
 		void webhook(std::string id, std::string params) {
 
 			auto iv = encryption::sha256(encryption::iv_key());
-			std::string hwid = utils::get_hwid();
 
-			std::string data =
+			auto data =
 				XorStr("type=").c_str() + encryption::encode(XorStr("webhook").c_str()) +
-				XorStr("&webid=").c_str() + encryption::encrypt(id, secret, iv) +
-				XorStr("&params=").c_str() + encryption::encrypt(params, secret, iv) +
+				XorStr("&webid=").c_str() + encryption::encrypt(id, enckey, iv) +
+				XorStr("&params=").c_str() + encryption::encrypt(params, enckey, iv) +
 				XorStr("&sessionid=").c_str() + encryption::encode(sessionid) +
 				XorStr("&name=").c_str() + encryption::encode(name) +
 				XorStr("&ownerid=").c_str() + encryption::encode(ownerid) +
 				XorStr("&init_iv=").c_str() + iv;
 
 			auto response = req(data);
+			
 			response = encryption::decrypt(response, enckey, iv);
+			std::cout << response;
+			
+
 			auto json = response_decoder.parse(response);
 
 			if (json[("success")])

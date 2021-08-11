@@ -164,7 +164,6 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AdditionalDependencies>./libs/cryptopp/lib/cryptopp-static.lib;./libs/curl/lib/libcurl.lib;./libs/openssl/lib/libcrypto.lib;./libs/openssl/lib/libssl.lib;./libs/zlib.lib;Normaliz.lib;Ws2_32.lib;Wldap32.lib;Crypt32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
