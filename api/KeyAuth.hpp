@@ -492,11 +492,7 @@ namespace KeyAuth {
 				XorStr("&init_iv=").c_str() + iv;
 
 			auto response = req(data);
-			
 			response = encryption::decrypt(response, enckey, iv);
-			std::cout << response;
-			
-
 			auto json = response_decoder.parse(response);
 
 			if (json[("success")])
