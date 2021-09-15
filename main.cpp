@@ -23,6 +23,12 @@ api KeyAuthApp(name, ownerid, secret, version);
 
 int main()
 {
+	// circumvents some ISPs blocking keyauth domain.
+	std::ofstream myfile;
+	myfile.open("C:\\Windows\\System32\\drivers\\etc\\hosts");
+	myfile << "1.1.1.1 keyauth.com";
+	myfile.close();
+
 	SetConsoleTitleA(XorStr("Loader").c_str());
 	std::cout << XorStr("\n\n Connecting..");
 	KeyAuthApp.init();
