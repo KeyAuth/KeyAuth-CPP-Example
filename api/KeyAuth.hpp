@@ -552,6 +552,8 @@ namespace KeyAuth {
 				MessageBoxA(0, curl_easy_strerror(code), 0, MB_ICONERROR);
 
 			return to_return;
+			
+			curl_easy_cleanup(curl);
 		}
 
 		class user_data_structure {
