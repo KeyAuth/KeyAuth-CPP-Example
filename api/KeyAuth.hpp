@@ -550,10 +550,10 @@ namespace KeyAuth {
 
 			if (code != CURLE_OK)
 				MessageBoxA(0, curl_easy_strerror(code), 0, MB_ICONERROR);
-
-			return to_return;
 			
 			curl_easy_cleanup(curl);
+			
+			return to_return;
 		}
 
 		class user_data_structure {
