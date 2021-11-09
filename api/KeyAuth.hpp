@@ -553,6 +553,16 @@ namespace KeyAuth {
 			
 			curl_easy_cleanup(curl);
 			
+			long http_code = 0;
+			curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+			if (http_code == 429) // client was rate limited
+			{
+				std::cout << XorStr("\n\n You're connecting too fast to loader, slow down.");
+				Sleep(3500);
+				exit(0);
+			}
+			
 			return to_return;
 		}
 
