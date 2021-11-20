@@ -4,6 +4,7 @@
 #include <tlhelp32.h>
 #include <fstream>
 #include <filesystem>
+
 using namespace KeyAuth;
 
 /*
@@ -23,12 +24,17 @@ api KeyAuthApp(name, ownerid, secret, version);
 
 int main()
 {
-
 	SetConsoleTitleA(XorStr("Loader").c_str());
 	std::cout << XorStr("\n\n Connecting..");
 	KeyAuthApp.init();
+
+	if (KeyAuthApp.checkblack()) // check if user HWID or IP is blacklisted (don't put before init or it won't work)
+	{
+		exit(0);
+	}
+
 	system(XorStr("cls").c_str());
-	
+
 	std::cout << XorStr("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
 	int option;
@@ -39,71 +45,89 @@ int main()
 	std::cin >> option;
 	switch (option)
 	{
-		case 1:
-			std::cout << XorStr("\n\n Enter username: ");
-			std::cin >> username;
-			std::cout << XorStr("\n Enter password: ");
-			std::cin >> password;
-			KeyAuthApp.login(username, password);
-			break;
-		case 2:
-			std::cout << XorStr("\n\n Enter username: ");
-			std::cin >> username;
-			std::cout << XorStr("\n Enter password: ");
-			std::cin >> password;
-			std::cout << XorStr("\n Enter license: ");
-			std::cin >> key;
-			KeyAuthApp.regstr(username,password,key);
-			break;
-		case 3:
-			std::cout << XorStr("\n\n Enter username: ");
-			std::cin >> username;
-			std::cout << XorStr("\n Enter license: ");
-			std::cin >> key;
-			KeyAuthApp.upgrade(username, key);
-			break;
-		case 4:
-			std::cout << XorStr("\n Enter license: ");
-			std::cin >> key;
-			KeyAuthApp.license(key);
-			break;
-		default:
-			std::cout << XorStr("\n\n Status: Failure: Invalid Selection");
-			Sleep(3000);
-			exit(0);
+	case 1:
+		std::cout << XorStr("\n\n Enter username: ");
+		std::cin >> username;
+		std::cout << XorStr("\n Enter password: ");
+		std::cin >> password;
+		KeyAuthApp.login(username, password);
+		break;
+	case 2:
+		std::cout << XorStr("\n\n Enter username: ");
+		std::cin >> username;
+		std::cout << XorStr("\n Enter password: ");
+		std::cin >> password;
+		std::cout << XorStr("\n Enter license: ");
+		std::cin >> key;
+		KeyAuthApp.regstr(username, password, key);
+		break;
+	case 3:
+		std::cout << XorStr("\n\n Enter username: ");
+		std::cin >> username;
+		std::cout << XorStr("\n Enter license: ");
+		std::cin >> key;
+		KeyAuthApp.upgrade(username, key);
+		break;
+	case 4:
+		std::cout << XorStr("\n Enter license: ");
+		std::cin >> key;
+		KeyAuthApp.license(key);
+		break;
+	default:
+		std::cout << XorStr("\n\n Status: Failure: Invalid Selection");
+		Sleep(3000);
+		exit(0);
 	}
-	
-	/*
-	// download file
-    std::vector<std::uint8_t> bytes = KeyAuthApp.download("123456");
-    std::ofstream file("file.exe", std::ios_base::out | std::ios_base::binary);
-    file.write((char*)bytes.data(), bytes.size());
-    file.close();
-	*/
-	
-	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there too
-	// KeyAuthApp.webhook("HDb5HiwOSM", "&type=black&ip=1.1.1.1&hwid=abc"); // webhook request to securely send GET request to API, here's what it looks like on dashboard https://i.imgur.com/jW74Hwe.png
-	// KeyAuthApp.ban(); // ban the current user, must be logged in
 
-	#pragma region
-	time_t rawtime = mktime(&KeyAuthApp.user_data.expiry);
+	std::cout << XorStr("\n\n User data:");
+	std::cout << XorStr("\n Username: ");
+	std::cout << KeyAuthApp.user_data.username;
+	std::cout << XorStr("\n IP address: ");
+	std::cout << KeyAuthApp.user_data.ip;
+	std::cout << XorStr("\n Hardware-Id: ");
+	std::cout << KeyAuthApp.user_data.hwid;
+
+	time_t rawtime = mktime(&KeyAuthApp.user_data.createdate);
 	struct tm* timeinfo;
 	timeinfo = localtime(&rawtime);
-	printf(XorStr("\n Your Subscription Expires At: %s").c_str(), asctime(timeinfo));
-	
-	time_t currtime;
-	struct tm* tminfo;
-	time(&currtime);
-	tminfo = localtime(&currtime);
+	printf(XorStr("\n Created at: %s").c_str(), asctime(timeinfo));
 
-	std::time_t x = std::mktime(tminfo);
-	std::time_t y = std::mktime(&KeyAuthApp.user_data.expiry);
-	if (x != (std::time_t)(-1) && y != (std::time_t)(-1))
-	{
-		double difference = std::difftime(y, x) / (60 * 60 * 24);
-		std::cout << "\n " << difference << " day(s) left" << std::endl;
-	}
-	#pragma endregion Display Expiration Date and Days Left Until Expiry
-	
-	Sleep(-1); // this is to keep your application open for test purposes. it pauses your application forever, remove this when you want.
+	rawtime = mktime(&KeyAuthApp.user_data.lastlogin);
+	timeinfo = localtime(&rawtime);
+	printf(XorStr(" Last login at: %s").c_str(), asctime(timeinfo));
+
+	rawtime = mktime(&KeyAuthApp.user_data.expiry);
+	timeinfo = localtime(&rawtime);
+	printf(XorStr(" Expires At: %s").c_str(), asctime(timeinfo));
+
+	std::cout << XorStr(" Time Left in seconds: ");
+	std::cout << KeyAuthApp.user_data.timeleft;
+
+	/*
+	// download file, change file.exe to whatever you want.
+	// remember, certain paths like windows folder will require you to turn on auto run as admin https://stackoverflow.com/a/19617989
+
+	std::vector<std::uint8_t> bytes = KeyAuthApp.download("167212");
+	std::ofstream file("file.exe", std::ios_base::out | std::ios_base::binary);
+	file.write((char*)bytes.data(), bytes.size());
+	file.close();
+	*/
+
+	// KeyAuthApp.setvar("discord", "test#0001"); // set the variable 'discord' to 'test#0001'
+	// std::cout << KeyAuthApp.getvar("discord"); // display the user variable 'discord'
+
+	// let's say you want to send request to https://keyauth.com/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef&type=black&ip=1.1.1.1&hwid=abc
+	// but doing that from inside the loader is a bad idea as the link could get leaked.
+	// Instead, you should create a webhook with the https://keyauth.com/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef part as the URL
+	// then in your loader, put the rest of the link (the other paramaters) in your loader. And then it will send request from KeyAuth server and return response in string resp
+	// std::string resp = KeyAuthApp.webhook("XESXjhZuwN", "&type=black&ip=1.1.1.1&hwid=abc");
+	// std::cout << XorStr("\n  Response recieved from webhook request: ");
+	// std::cout << resp;
+
+	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there too
+	// KeyAuthApp.ban(); // ban the current user, must be logged in
+
+	std::cout << "\n\n Closing in ten seconds...";
+	Sleep(10000);
+	exit(0);
 }
