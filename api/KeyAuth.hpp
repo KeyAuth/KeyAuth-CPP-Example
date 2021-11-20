@@ -635,7 +635,7 @@ namespace KeyAuth {
 
 		void load_user_data(nlohmann::json data) {
 			user_data.username = data["username"];
-			// user_data.ip = data["ip"];
+			user_data.ip = data["ip"];
 			user_data.hwid = data["hwid"];
 			user_data.createdate = utils::timet_to_tm(
 				utils::string_to_timet(data["createdate"])
