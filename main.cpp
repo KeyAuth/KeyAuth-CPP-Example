@@ -102,6 +102,7 @@ int main()
 
 	std::cout << XorStr(" Time Left in seconds: ");
 	std::cout << KeyAuthApp.user_data.timeleft;
+	std::cout << XorStr("\nSubscription Type: ");
 	std::cout << KeyAuthApp.user_data.subscription;
 
 	/*
