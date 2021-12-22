@@ -102,6 +102,7 @@ int main()
 
 	std::cout << XorStr(" Time Left in seconds: ");
 	std::cout << KeyAuthApp.user_data.timeleft;
+	std::cout << KeyAuthApp.user_data.subscription;
 
 	/*
 	// download file, change file.exe to whatever you want.

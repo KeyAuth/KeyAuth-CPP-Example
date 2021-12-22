@@ -564,6 +564,7 @@ namespace KeyAuth {
 			std::string username;
 			std::string ip;
 			std::string hwid;
+			std::string subscription;
 			std::tm createdate;
 			std::tm lastlogin;
 			std::tm expiry;
@@ -616,22 +617,11 @@ namespace KeyAuth {
 
 			if (http_code == 429) // client was rate limited
 			{
-				error("You're connecting too fast to loader, slow down.");
+				error(XorStr("You're connecting too fast to loader, slow down.").c_str());
 			}
 
 			return to_return;
 		}
-
-		class user_data_structure {
-		public:
-			std::string username;
-			std::string ip;
-			std::string hwid;
-			std::string createdate;
-			std::string lastlogin;
-			std::string expiry;
-			int timeleft;
-		};
 
 		void load_user_data(nlohmann::json data) {
 			user_data.username = data["username"];
@@ -647,6 +637,7 @@ namespace KeyAuth {
 				utils::string_to_timet(data["subscriptions"][0]["expiry"])
 			);
 			user_data.timeleft = data["subscriptions"][0]["timeleft"];
+			user_data.subscription = data["subscriptions"][0]["subscription"];
 		}
 
 		nlohmann::json response_decoder;
