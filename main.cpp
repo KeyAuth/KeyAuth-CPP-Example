@@ -1,42 +1,25 @@
-#include <iostream>
-#include "api/KeyAuth.hpp"
-#include "xorstr.hpp"
-#include <tlhelp32.h>
-#include <fstream>
-#include <filesystem>
+#include <Windows.h>
+#include <auth.hpp>
+#include <string>
 
 using namespace KeyAuth;
 
-/*
-*
-*
-* WATCH THIS VIDEO FOR SETUP TUTORIAL: https://youtube.com/watch?v=uJ0Umy_C6Fg
-* DO NOT CONTACT DISMAIL WITHOUT WATCHING VIDEO FIRST
-*
-*/
-
-std::string name = XorStr(""); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
-std::string ownerid = XorStr(""); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
-std::string secret = XorStr(""); // app secret, the blurred text on licenses tab and other tabs
-std::string version = XorStr("1.0"); // leave alone unless you've changed version on website
+std::string name = ""; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+std::string ownerid = ""; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+std::string secret = ""; // app secret, the blurred text on licenses tab and other tabs
+std::string version = "1.0"; // leave alone unless you've changed version on website
 
 api KeyAuthApp(name, ownerid, secret, version);
 
 int main()
 {
-	SetConsoleTitleA(XorStr("Loader").c_str());
-	std::cout << XorStr("\n\n Connecting..");
+
+	SetConsoleTitleA("Loader");
+	std::cout << "\n\n Connecting..";
 	KeyAuthApp.init();
 
-	if (KeyAuthApp.checkblack()) // check if user HWID or IP is blacklisted (don't put before init or it won't work)
-	{
-		exit(0);
-	}
-
-	system(XorStr("cls").c_str());
-
-	std::cout << XorStr("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
-
+	std::cout << "\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ";
+	
 	int option;
 	std::string username;
 	std::string password;
@@ -46,62 +29,51 @@ int main()
 	switch (option)
 	{
 	case 1:
-		std::cout << XorStr("\n\n Enter username: ");
+		std::cout << "\n\n Enter username: ";
 		std::cin >> username;
-		std::cout << XorStr("\n Enter password: ");
+		std::cout << "\n Enter password: ";
 		std::cin >> password;
 		KeyAuthApp.login(username, password);
 		break;
 	case 2:
-		std::cout << XorStr("\n\n Enter username: ");
+		std::cout << "\n\n Enter username: ";
 		std::cin >> username;
-		std::cout << XorStr("\n Enter password: ");
+		std::cout << "\n Enter password: ";
 		std::cin >> password;
-		std::cout << XorStr("\n Enter license: ");
+		std::cout << "\n Enter license: ";
 		std::cin >> key;
 		KeyAuthApp.regstr(username, password, key);
 		break;
 	case 3:
-		std::cout << XorStr("\n\n Enter username: ");
+		std::cout << "\n\n Enter username: ";
 		std::cin >> username;
-		std::cout << XorStr("\n Enter license: ");
+		std::cout << "\n Enter license: ";
 		std::cin >> key;
 		KeyAuthApp.upgrade(username, key);
 		break;
 	case 4:
-		std::cout << XorStr("\n Enter license: ");
+		std::cout << "\n Enter license: ";
 		std::cin >> key;
 		KeyAuthApp.license(key);
 		break;
 	default:
-		std::cout << XorStr("\n\n Status: Failure: Invalid Selection");
+		std::cout << "\n\n Status: Failure: Invalid Selection";
 		Sleep(3000);
 		exit(0);
 	}
+	 
+	std::cout << "\n User data:";
+	std::cout << "\n Username: " + KeyAuthApp.user_data.username;
+	std::cout << "\n IP address: " + KeyAuthApp.user_data.ip;
+	std::cout << "\n Hardware-Id: " + KeyAuthApp.user_data.hwid;
 
-	std::cout << XorStr("\n\n User data:");
-	std::cout << XorStr("\n Username: ");
-	std::cout << KeyAuthApp.user_data.username;
-	std::cout << XorStr("\n IP address: ");
-	std::cout << KeyAuthApp.user_data.ip;
-	std::cout << XorStr("\n Hardware-Id: ");
-	std::cout << KeyAuthApp.user_data.hwid;
+	/*
+	KeyAuthApp.web_login();
 
-	time_t rawtime = mktime(&KeyAuthApp.user_data.createdate);
-	struct tm* timeinfo;
-	timeinfo = localtime(&rawtime);
-	printf(XorStr("\n Created at: %s").c_str(), asctime(timeinfo));
+	std::cout << "\n Waiting for button to be clicked";
+	KeyAuthApp.button("close");
+	*/
 
-	rawtime = mktime(&KeyAuthApp.user_data.lastlogin);
-	timeinfo = localtime(&rawtime);
-	printf(XorStr(" Last login at: %s").c_str(), asctime(timeinfo));
-
-	rawtime = mktime(&KeyAuthApp.user_data.expiry);
-	timeinfo = localtime(&rawtime);
-	printf(XorStr(" Expires At: %s").c_str(), asctime(timeinfo));
-
-	std::cout << XorStr(" Time Left in seconds: ");
-	std::cout << KeyAuthApp.user_data.timeleft;
 
 	/*
 	// download file, change file.exe to whatever you want.
@@ -114,15 +86,16 @@ int main()
 	*/
 
 	// KeyAuthApp.setvar("discord", "test#0001"); // set the variable 'discord' to 'test#0001'
-	// std::cout << KeyAuthApp.getvar("discord"); // display the user variable 'discord'
+	// std::cout << "\n\n User variable data: " + KeyAuthApp.getvar("discord"); // display the user variable witn name 'discord'
 
 	// let's say you want to send request to https://keyauth.com/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef&type=black&ip=1.1.1.1&hwid=abc
 	// but doing that from inside the loader is a bad idea as the link could get leaked.
 	// Instead, you should create a webhook with the https://keyauth.com/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef part as the URL
 	// then in your loader, put the rest of the link (the other paramaters) in your loader. And then it will send request from KeyAuth server and return response in string resp
-	// std::string resp = KeyAuthApp.webhook("XESXjhZuwN", "&type=black&ip=1.1.1.1&hwid=abc");
-	// std::cout << XorStr("\n  Response recieved from webhook request: ");
-	// std::cout << resp;
+	
+	// you have to encode the & sign with %26
+	// std::string resp = KeyAuthApp.webhook("P5NHesuZyf", "%26type=black%26ip=1.1.1.1%26hwid=abc");
+	// std::cout << "\n Response recieved from webhook request: " + resp;
 
 	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there too
 	// KeyAuthApp.ban(); // ban the current user, must be logged in

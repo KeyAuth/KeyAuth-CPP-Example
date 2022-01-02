@@ -1,11 +1,9 @@
 # KeyAuth-CPP-Example
 KeyAuth CPP Example
 
-- Download Repository
-- extract `libs.zip` so that there is a libs folder in your project. then you may delete `libs.zip` 
-- Add application info to `main.cpp` file, here is a video tutorial if needed: https://youtube.com/watch?v=uJ0Umy_C6Fg
+Video on how to add KeyAuth to your own application https://youtu.be/GB4XW_TsHqA
 
-Then you're ready to compile!
+Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
 
 **What is KeyAuth?**
 
