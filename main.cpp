@@ -1,7 +1,7 @@
 #include <Windows.h>
-#include <auth.hpp>
 #include <string>
 #include <iostream>
+#include "auth.hpp"
 
 using namespace KeyAuth;
 
