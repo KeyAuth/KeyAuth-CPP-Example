@@ -27,14 +27,26 @@ namespace KeyAuth {
 		std::vector<unsigned char> download(std::string fileid);
 		void regstr(std::string username, std::string password, std::string key);
 
-		class user_data_class {
+		class data_class {
 		public:
+			// app data
+			std::string numUsers;
+			std::string numOnlineUsers;
+			std::string numKeys;
+			std::string version;
+			std::string customerPanelLink;
+			// user data
 			std::string username;
 			std::string ip;
 			std::string hwid;
-			std::string timeleft;
+			std::string createdate;
+			std::string lastlogin;
+			// response data
+			bool success;
+			std::string message;
 		};
-		user_data_class user_data;
+		data_class data;
+
 	private:
 		std::string sessionid, enckey;
 	};
