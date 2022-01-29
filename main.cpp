@@ -18,6 +18,8 @@ std::string version = "1.0"; // leave alone unless you've changed version on web
 	Video on how to add KeyAuth to your own application https://youtu.be/GB4XW_TsHqA
 
 	Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
+	
+	If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.discordapp.com/attachments/824399478232055848/935157105135087616/library_x64_-_2022_build_-_1.1_api_connection.rar
 */
 
 api KeyAuthApp(name, ownerid, secret, version);
