@@ -19,7 +19,7 @@ std::string version = "1.0"; // leave alone unless you've changed version on web
 
 	Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
 	
-	If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.discordapp.com/attachments/824399478232055848/935157105135087616/library_x64_-_2022_build_-_1.1_api_connection.rar
+	If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.keyauth.win/library_x64.lib
 */
 
 api KeyAuthApp(name, ownerid, secret, version);
@@ -101,6 +101,8 @@ int main()
 	std::cout << "\n Hardware-Id: " + KeyAuthApp.data.hwid;
 	std::cout << "\n Create date: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.createdate)));
 	std::cout << "\n Last login: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
+	std::cout << "\n Subscription name: " + KeyAuthApp.data.subscription;
+	std::cout << "\n Subscription expiry: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
 
 	/*
 	KeyAuthApp.web_login();
