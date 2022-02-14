@@ -11,6 +11,8 @@ std::string name = ""; // application name. right above the blurred text aka the
 std::string ownerid = ""; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
 std::string secret = ""; // app secret, the blurred text on licenses tab and other tabs
 std::string version = "1.0"; // leave alone unless you've changed version on website
+std::string url = "https://keyauth.win/api/1.1/"; // change if you're self-hosting
+std::string sslPin = "ssl pin key (optional)"; // don't change unless you intend to pin public certificate key. you can get here in the "Pin SHA256" field https://www.ssllabs.com/ssltest/analyze.html?d=keyauth.win&latest. If you do this you need to be aware of when SSL key expires so you can update it
 
 /*
 	Video on what ownerid and secret are https://youtu.be/uJ0Umy_C6Fg
@@ -18,15 +20,12 @@ std::string version = "1.0"; // leave alone unless you've changed version on web
 	Video on how to add KeyAuth to your own application https://youtu.be/GB4XW_TsHqA
 
 	Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
-	
-	If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.keyauth.win/library_x64.lib
 */
 
-api KeyAuthApp(name, ownerid, secret, version);
+api KeyAuthApp(name, ownerid, secret, version, url, sslPin);
 
 int main()
 {
-
 	SetConsoleTitleA("Loader");
 	std::cout << "\n\n Connecting..";
 	KeyAuthApp.init();
@@ -103,7 +102,6 @@ int main()
 	std::cout << "\n Last login: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
 	std::cout << "\n Subscription name: " + KeyAuthApp.data.subscription;
 	std::cout << "\n Subscription expiry: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
-
 	/*
 	KeyAuthApp.web_login();
 
@@ -125,9 +123,9 @@ int main()
 	// KeyAuthApp.setvar("discord", "test#0001"); // set the variable 'discord' to 'test#0001'
 	// std::cout << "\n\n User variable data: " + KeyAuthApp.getvar("discord"); // display the user variable witn name 'discord'
 
-	// let's say you want to send request to https://keyauth.com/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef&type=black&ip=1.1.1.1&hwid=abc
+	// let's say you want to send request to https://keyauth.win/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef&type=black&ip=1.1.1.1&hwid=abc
 	// but doing that from inside the loader is a bad idea as the link could get leaked.
-	// Instead, you should create a webhook with the https://keyauth.com/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef part as the URL
+	// Instead, you should create a webhook with the https://keyauth.win/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef part as the URL
 	// then in your loader, put the rest of the link (the other paramaters) in your loader. And then it will send request from KeyAuth server and return response in string resp
 
 	// you have to encode the & sign with %26
