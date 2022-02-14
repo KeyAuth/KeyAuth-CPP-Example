@@ -7,9 +7,9 @@ namespace KeyAuth {
 	class api {
 	public:
 
-		std::string name, ownerid, secret, version;
+		std::string name, ownerid, secret, version, url, sslPin;
 
-		api(std::string name, std::string ownerid, std::string secret, std::string version) : name(name), ownerid(ownerid), secret(secret), version(version) {}
+		api(std::string name, std::string ownerid, std::string secret, std::string version, std::string url, std::string sslPin) : name(name), ownerid(ownerid), secret(secret), version(version), url(url), sslPin(sslPin) {}
 
 		void ban();
 		void init();
