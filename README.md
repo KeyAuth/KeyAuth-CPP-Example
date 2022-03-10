@@ -7,6 +7,14 @@ Video to use Web Loader (control loader from customer panel) https://youtu.be/9-
 
 If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.keyauth.win/library_x64.lib
 
+**Security practices**
+
+* Utilize obfuscation provided by companies such as VMProtect or Themida (utilize their SDKs too for greater protection)
+* Preform frequent integrity checks to ensure the memory of the program has not been modified
+* Don't write the bytes of a file you've downloaded to disk if you don't want that file to be retrieved by the user. Rather, execute the file in memory and erase it from memory the moment execution finishes
+
+*KeyAuth is provided in Source Code Form. The burden of client-side protection is on you the software developer, as it would be with any authentication system.*
+
 **What is KeyAuth?**
 
 KeyAuth is an Open source authentication system with cloud hosting plans as well. Client SDKs available for C++, C#, Python, Rust, PHP, and VB.NET.
