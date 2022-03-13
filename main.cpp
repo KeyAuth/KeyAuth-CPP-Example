@@ -42,6 +42,8 @@ int main()
 	std::cout << "\n Number of keys: " + KeyAuthApp.data.numKeys;
 	std::cout << "\n Application Version: " + KeyAuthApp.data.version;
 	std::cout << "\n Customer panel link: " + KeyAuthApp.data.customerPanelLink;
+	KeyAuthApp.check();
+	std::cout << "\n Current Session Validation Status: " + KeyAuthApp.data.message;
 
 	std::cout << "\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ";
 
@@ -102,6 +104,10 @@ int main()
 	std::cout << "\n Last login: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
 	std::cout << "\n Subscription name: " + KeyAuthApp.data.subscription;
 	std::cout << "\n Subscription expiry: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
+	
+	KeyAuthApp.check();
+	std::cout << "\n Current Session Validation Status: " + KeyAuthApp.data.message;
+	
 	/*
 	KeyAuthApp.web_login();
 
