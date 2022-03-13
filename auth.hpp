@@ -13,6 +13,7 @@ namespace KeyAuth {
 
 		void ban();
 		void init();
+		void check();
 		void log(std::string msg);
 		void license(std::string key);
 		std::string var(std::string varid);
