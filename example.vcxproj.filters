@@ -16,6 +16,9 @@
     <Filter Include="Header Files\auth">
       <UniqueIdentifier>{de1a561c-edb6-4e62-a44a-ca45ef812d97}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Protection">
+      <UniqueIdentifier>{587eab74-13d3-4764-9f32-49b7924744df}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -25,6 +28,9 @@
   <ItemGroup>
     <ClInclude Include="auth.hpp">
       <Filter>Header Files\auth</Filter>
+    </ClInclude>
+    <ClInclude Include="skStr.h">
+      <Filter>Header Files\Protection</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
