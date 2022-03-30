@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include "auth.hpp"
 #include <string>
+#include "skStr.h"
 std::string tm_to_readable_time(tm ctx);
 static std::time_t string_to_timet(std::string timestamp);
 static std::tm timet_to_tm(time_t timestamp);
@@ -26,26 +27,26 @@ api KeyAuthApp(name, ownerid, secret, version, url, sslPin);
 
 int main()
 {
-	SetConsoleTitleA("Loader");
-	std::cout << "\n\n Connecting..";
+	SetConsoleTitleA(skCrypt("Loader"));
+	std::cout << skCrypt("\n\n Connecting..");
 	KeyAuthApp.init();
 	if (!KeyAuthApp.data.success)
 	{
-		std::cout << "\n Status: " + KeyAuthApp.data.message;
+		std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
 		Sleep(1500);
 		exit(0);
 	}
 
-	std::cout << "\n\n App data:";
-	std::cout << "\n Number of users: " + KeyAuthApp.data.numUsers;
-	std::cout << "\n Number of online users: " + KeyAuthApp.data.numOnlineUsers;
-	std::cout << "\n Number of keys: " + KeyAuthApp.data.numKeys;
-	std::cout << "\n Application Version: " + KeyAuthApp.data.version;
-	std::cout << "\n Customer panel link: " + KeyAuthApp.data.customerPanelLink;
+	std::cout << skCrypt("\n\n App data:");
+	std::cout << skCrypt("\n Number of users: ") << KeyAuthApp.data.numUsers;
+	std::cout << skCrypt("\n Number of online users: ") << KeyAuthApp.data.numOnlineUsers;
+	std::cout << skCrypt("\n Number of keys: ") << KeyAuthApp.data.numKeys;
+	std::cout << skCrypt("\n Application Version: ") << KeyAuthApp.data.version;
+	std::cout << skCrypt("\n Customer panel link: ") << KeyAuthApp.data.customerPanelLink;
 	KeyAuthApp.check();
-	std::cout << "\n Current Session Validation Status: " + KeyAuthApp.data.message;
+	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
 
-	std::cout << "\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ";
+	std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
 	int option;
 	std::string username;
@@ -56,57 +57,57 @@ int main()
 	switch (option)
 	{
 	case 1:
-		std::cout << "\n\n Enter username: ";
+		std::cout << skCrypt("\n\n Enter username: ");
 		std::cin >> username;
-		std::cout << "\n Enter password: ";
+		std::cout << skCrypt("\n Enter password: ");
 		std::cin >> password;
 		KeyAuthApp.login(username, password);
 		break;
 	case 2:
-		std::cout << "\n\n Enter username: ";
+		std::cout << skCrypt("\n\n Enter username: ");
 		std::cin >> username;
-		std::cout << "\n Enter password: ";
+		std::cout << skCrypt("\n Enter password: ");
 		std::cin >> password;
-		std::cout << "\n Enter license: ";
+		std::cout << skCrypt("\n Enter license: ");
 		std::cin >> key;
 		KeyAuthApp.regstr(username, password, key);
 		break;
 	case 3:
-		std::cout << "\n\n Enter username: ";
+		std::cout << skCrypt("\n\n Enter username: ");
 		std::cin >> username;
-		std::cout << "\n Enter license: ";
+		std::cout << skCrypt("\n Enter license: ");
 		std::cin >> key;
 		KeyAuthApp.upgrade(username, key);
 		break;
 	case 4:
-		std::cout << "\n Enter license: ";
+		std::cout << skCrypt("\n Enter license: ");
 		std::cin >> key;
 		KeyAuthApp.license(key);
 		break;
 	default:
-		std::cout << "\n\n Status: Failure: Invalid Selection";
+		std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
 		Sleep(3000);
 		exit(0);
 	}
 
 	if (!KeyAuthApp.data.success)
 	{
-		std::cout << "\n Status: " + KeyAuthApp.data.message;
+		std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
 		Sleep(1500);
 		exit(0);
 	}
 
-	std::cout << "\n User data:";
-	std::cout << "\n Username: " + KeyAuthApp.data.username;
-	std::cout << "\n IP address: " + KeyAuthApp.data.ip;
-	std::cout << "\n Hardware-Id: " + KeyAuthApp.data.hwid;
-	std::cout << "\n Create date: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.createdate)));
-	std::cout << "\n Last login: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
-	std::cout << "\n Subscription name: " + KeyAuthApp.data.subscription;
-	std::cout << "\n Subscription expiry: " + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
+	std::cout << skCrypt("\n User data:");
+	std::cout << skCrypt("\n Username: ") << KeyAuthApp.data.username;
+	std::cout << skCrypt("\n IP address: ") << KeyAuthApp.data.ip;
+	std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.data.hwid;
+	std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.createdate)));
+	std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
+	std::cout << skCrypt("\n Subscription name: ") << KeyAuthApp.data.subscription;
+	std::cout << skCrypt("\n Subscription expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
 	
 	KeyAuthApp.check();
-	std::cout << "\n Current Session Validation Status: " + KeyAuthApp.data.message;
+	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
 	
 	/*
 	KeyAuthApp.web_login();
@@ -141,7 +142,7 @@ int main()
 	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there too
 	// KeyAuthApp.ban(); // ban the current user, must be logged in
 
-	std::cout << "\n\n Closing in ten seconds...";
+	std::cout << skCrypt("\n\n Closing in ten seconds...");
 	Sleep(10000);
 	exit(0);
 }
