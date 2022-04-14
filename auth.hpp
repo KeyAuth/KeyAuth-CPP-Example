@@ -42,7 +42,7 @@ namespace KeyAuth {
 			std::string hwid;
 			std::string createdate;
 			std::string lastlogin;
-			std::string subscription;
+			std::vector<std::string> subscriptions;
 			std::string expiry;
 			// response data
 			bool success;
