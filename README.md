@@ -7,6 +7,8 @@ Video to use Web Loader (control loader from customer panel) https://youtu.be/9-
 
 If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.keyauth.win/library_x64.lib
 
+**For other issues, join Discord server https://keyauth.win/discord and look at the select menu for C++ common issues inside the message in the #faq-common-issues channel**
+
 **Security practices**
 
 * Utilize obfuscation provided by companies such as VMProtect or Themida (utilize their SDKs too for greater protection)
