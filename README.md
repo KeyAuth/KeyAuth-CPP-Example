@@ -1,11 +1,14 @@
+If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.keyauth.win/library_x64.lib
+
+If that doesn't work, build the library yourself here https://github.com/KeyAuth/keyauth-cpp-library normally you'll want to build Release x64, and if you want to build in Release 86 there's instructions there for that
+
+
 # KeyAuth-CPP-Example
 KeyAuth CPP Example
 
 Video on how to add KeyAuth to your own application https://youtu.be/GB4XW_TsHqA
 
 Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
-
-If you get an *The object or library file '' was created by a different version of the compiler* error, replace the library_x64.lib with this one https://cdn.keyauth.win/library_x64.lib
 
 **For other issues, join Discord server https://keyauth.win/discord and look at the select menu for C++ common issues inside the message in the #faq-common-issues channel**
 
