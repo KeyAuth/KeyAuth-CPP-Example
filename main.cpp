@@ -12,7 +12,7 @@ std::string name = ""; // application name. right above the blurred text aka the
 std::string ownerid = ""; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
 std::string secret = ""; // app secret, the blurred text on licenses tab and other tabs
 std::string version = "1.0"; // leave alone unless you've changed version on website
-std::string url = "https://keyauth.win/api/1.1/"; // change if you're self-hosting
+std::string url = "https://keyauth.win/api/1.2/"; // change if you're self-hosting
 std::string sslPin = "ssl pin key (optional)"; // don't change unless you intend to pin public certificate key. you can get here in the "Pin SHA256" field https://www.ssllabs.com/ssltest/analyze.html?d=keyauth.win&latest. If you do this you need to be aware of when SSL key expires so you can update it
 
 /*
@@ -37,6 +37,14 @@ int main()
 		exit(0);
 	}
 
+	/*
+		Optional - check if HWID or IP blacklisted
+
+	if (KeyAuthApp.checkblack()) {
+		abort();
+	}
+	*/
+
 	std::cout << skCrypt("\n\n App data:");
 	std::cout << skCrypt("\n Number of users: ") << KeyAuthApp.data.numUsers;
 	std::cout << skCrypt("\n Number of online users: ") << KeyAuthApp.data.numOnlineUsers;
@@ -48,12 +56,12 @@ int main()
 	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
 
 	std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
-
+	
 	int option;
 	std::string username;
 	std::string password;
 	std::string key;
-
+	
 	std::cin >> option;
 	switch (option)
 	{
@@ -90,14 +98,14 @@ int main()
 		Sleep(3000);
 		exit(0);
 	}
-
+	
 	if (!KeyAuthApp.data.success)
 	{
 		std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
 		Sleep(1500);
 		exit(0);
 	}
-
+	
 	std::cout << skCrypt("\n User data:");
 	std::cout << skCrypt("\n Username: ") << KeyAuthApp.data.username;
 	std::cout << skCrypt("\n IP address: ") << KeyAuthApp.data.ip;
@@ -114,6 +122,7 @@ int main()
 	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
 	
 	/*
+	std::cout << "\n Waiting for user to login";
 	KeyAuthApp.web_login();
 
 	std::cout << "\n Waiting for button to be clicked";
@@ -130,29 +139,51 @@ int main()
 	}
 	*/
 
+	
 	/*
 	// download file, change file.exe to whatever you want.
 	// remember, certain paths like windows folder will require you to turn on auto run as admin https://stackoverflow.com/a/19617989
 
-	std::vector<std::uint8_t> bytes = KeyAuthApp.download("167212");
-	std::ofstream file("file.exe", std::ios_base::out | std::ios_base::binary);
+	std::vector<std::uint8_t> bytes = KeyAuthApp.download("362906");
+
+	if (!KeyAuthApp.data.success) // check whether file downloaded correctly
+	{
+		std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
+		Sleep(1500);
+		exit(0);
+	}
+
+	std::ofstream file("file.dll", std::ios_base::out | std::ios_base::binary);
 	file.write((char*)bytes.data(), bytes.size());
 	file.close();
 	*/
+	
 
-	// KeyAuthApp.setvar("discord", "test#0001"); // set the variable 'discord' to 'test#0001'
-	// std::cout << "\n\n User variable data: " + KeyAuthApp.getvar("discord"); // display the user variable witn name 'discord'
-
+	// KeyAuthApp.setvar("discord", "test#0001"); // set the value of user variable 'discord' to 'test#0001'
+	// std::cout << "\n user variable - " + KeyAuthApp.getvar("discord"); // get value of the user variable 'discord'
+	
 	// let's say you want to send request to https://keyauth.win/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef&type=black&ip=1.1.1.1&hwid=abc
 	// but doing that from inside the loader is a bad idea as the link could get leaked.
 	// Instead, you should create a webhook with the https://keyauth.win/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef part as the URL
 	// then in your loader, put the rest of the link (the other paramaters) in your loader. And then it will send request from KeyAuth server and return response in string resp
+	
+	/*
+	// you have to replace the & sign with %26
+	// you have to replace the = sign with %3D
+	std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "");
+	if (!KeyAuthApp.data.success) // check whether webhook request sent correctly
+	{
+		std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
+		Sleep(1500);
+		exit(0);
+	}
+	std::cout << "\n Response recieved from webhook request: " + resp;
+	*/
 
-	// you have to encode the & sign with %26
-	// std::string resp = KeyAuthApp.webhook("P5NHesuZyf", "%26type=black%26ip=1.1.1.1%26hwid=abc");
-	// std::cout << "\n Response recieved from webhook request: " + resp;
+	// get data from global variable with name 'status'
+	// std::cout << "\n status - " + KeyAuthApp.var("status");
 
-	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there too
+	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there instead of dashboard
 	// KeyAuthApp.ban(); // ban the current user, must be logged in
 
 	std::cout << skCrypt("\n\n Closing in ten seconds...");
