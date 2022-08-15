@@ -13,7 +13,6 @@ std::string ownerid = ""; // ownerid, found in account settings. click your prof
 std::string secret = ""; // app secret, the blurred text on licenses tab and other tabs
 std::string version = "1.0"; // leave alone unless you've changed version on website
 std::string url = "https://keyauth.win/api/1.2/"; // change if you're self-hosting
-std::string sslPin = "ssl pin key (optional)"; // don't change unless you intend to pin public certificate key. you can get here in the "Pin SHA256" field https://www.ssllabs.com/ssltest/analyze.html?d=keyauth.win&latest. If you do this you need to be aware of when SSL key expires so you can update it
 
 /*
 	Video on what ownerid and secret are https://youtu.be/uJ0Umy_C6Fg
