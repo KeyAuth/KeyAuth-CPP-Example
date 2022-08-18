@@ -22,7 +22,7 @@ std::string url = "https://keyauth.win/api/1.2/"; // change if you're self-hosti
 	Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
 */
 
-api KeyAuthApp(name, ownerid, secret, version, url, sslPin);
+api KeyAuthApp(name, ownerid, secret, version, url);
 
 int main()
 {
