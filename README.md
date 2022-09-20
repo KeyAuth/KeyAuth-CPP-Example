@@ -2,6 +2,8 @@
 
 KeyAuth CPP Example For The https://keyauth.cc Authentication system.
 
+The source code of the static library for KeyAuth is here https://github.com/KeyAuth/keyauth-cpp-library
+
 **Security practices**
 
 * Utilize obfuscation provided by companies such as VMProtect or Themida (utilize their SDKs too for greater protection)
@@ -33,6 +35,9 @@ std::string name = "example"; // application name. right above the blurred text 
 std::string ownerid = "JjPMBVlIOd"; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
 std::string secret = "db40d586f4b189e04e5c18c3c94b7e72221be3f6551995adc05236948d1762bc"; // app secret, the blurred text on licenses tab and other tabs
 std::string version = "1.0"; // leave alone unless you've changed version on website
+std::string url = "https://keyauth.win/api/1.2/"; // change if you're self-hosting
+
+api KeyAuthApp(name, ownerid, secret, version, url);
 ```
 
 **Initialize application**
