@@ -282,3 +282,11 @@ std::ofstream file("file.dll", std::ios_base::out | std::ios_base::binary);
 file.write((char*)bytes.data(), bytes.size());
 file.close();
 ```
+
+**Chat channels**
+
+Allow users to communicate amongst themselves in your program.
+
+There's a console example here https://github.com/nuss31/KeyAuth-Cpp-Chat-Libary-Example
+
+And in our Discord server https://discord.gg/keyauth (after verifying for chat), you can see this ImGui example https://discord.com/channels/824397012685291520/824399478232055848/927262833031393313
