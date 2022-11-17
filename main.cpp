@@ -184,6 +184,7 @@ int main()
 
 	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there instead of dashboard
 	// KeyAuthApp.ban(); // ban the current user, must be logged in
+	// KeyAuthApp.ban("Don't try to crack my loader, cunt."); // ban the current user (with a reason), must be logged in
 
 	std::cout << skCrypt("\n\n Closing in ten seconds...");
 	Sleep(10000);

@@ -248,6 +248,18 @@ Function only works after login.
 KeyAuthApp.ban();
 ```
 
+#### **Ban the user (with reason)**
+
+Ban the user and blacklist their HWID and IP Address. Good function to call upon if you use anti-debug and have detected an intrusion attempt.
+
+Function only works after login.
+
+The reason paramater will be the ban reason displayed to the user if they try to login, and visible on the KeyAuth dashboard.
+
+```cpp
+KeyAuthApp.ban("Don't try to crack my loader, cunt.");
+```
+
 #### **Server-sided webhooks**
 
 Tutorial video https://www.youtube.com/watch?v=ENRaNPPYJbc
