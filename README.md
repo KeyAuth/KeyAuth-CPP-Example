@@ -32,7 +32,7 @@ For API, `keyauth.cc` will not work because I purposefully blocked it on there s
 
 Visit and select your application, then click on the **C++** tab
 
-It'll provide you with the code which you should replace with in the `Program.cs` file (or `Login.cs` file if using Form example)
+It'll provide you with the code which you should replace with in the [`main.cpp`](https://github.com/KeyAuth/KeyAuth-CPP-Example/blob/main/main.cpp#L11-L14) file
 
 ```cpp
 std::string name = "example"; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
