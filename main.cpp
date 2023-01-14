@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include "auth.hpp"
 #include <string>
+#include "utils.hpp"
 #include "skStr.h"
 std::string tm_to_readable_time(tm ctx);
 static std::time_t string_to_timet(std::string timestamp);
@@ -54,55 +55,86 @@ int main()
 	KeyAuthApp.check();
 	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
 
-	std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
-	
-	int option;
-	std::string username;
-	std::string password;
-	std::string key;
-	
-	std::cin >> option;
-	switch (option)
+	if (std::filesystem::exists("test.json")) //change test.txt to the path of your file :smile:
 	{
-	case 1:
-		std::cout << skCrypt("\n\n Enter username: ");
-		std::cin >> username;
-		std::cout << skCrypt("\n Enter password: ");
-		std::cin >> password;
-		KeyAuthApp.login(username, password);
-		break;
-	case 2:
-		std::cout << skCrypt("\n\n Enter username: ");
-		std::cin >> username;
-		std::cout << skCrypt("\n Enter password: ");
-		std::cin >> password;
-		std::cout << skCrypt("\n Enter license: ");
-		std::cin >> key;
-		KeyAuthApp.regstr(username, password, key);
-		break;
-	case 3:
-		std::cout << skCrypt("\n\n Enter username: ");
-		std::cin >> username;
-		std::cout << skCrypt("\n Enter license: ");
-		std::cin >> key;
-		KeyAuthApp.upgrade(username, key);
-		break;
-	case 4:
-		std::cout << skCrypt("\n Enter license: ");
-		std::cin >> key;
-		KeyAuthApp.license(key);
-		break;
-	default:
-		std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-		Sleep(3000);
-		exit(0);
+		if (LoginFromFileWithUser("test.json") == "Failed") 
+		{
+			std::string key = LoginFromFileWithKey("test.json");
+			KeyAuthApp.license(key);
+			if (!KeyAuthApp.data.success)
+			{
+				std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+				Sleep(1500);
+				exit(0);
+			}
+		}
+		std::cout << skCrypt("Successfully Automatically Logged In");
+		//KeyAuthApp.log("Someone has Logged in")
 	}
-	
-	if (!KeyAuthApp.data.success)
+	else
 	{
-		std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
-		Sleep(1500);
-		exit(0);
+		std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
+
+		int option;
+		std::string username;
+		std::string password;
+		std::string key;
+
+		std::cin >> option;
+		switch (option)
+		{
+		case 1:
+			std::cout << skCrypt("\n\n Enter username: ");
+			std::cin >> username;
+			std::cout << skCrypt("\n Enter password: ");
+			std::cin >> password;
+			KeyAuthApp.login(username, password);
+			break;
+		case 2:
+			std::cout << skCrypt("\n\n Enter username: ");
+			std::cin >> username;
+			std::cout << skCrypt("\n Enter password: ");
+			std::cin >> password;
+			std::cout << skCrypt("\n Enter license: ");
+			std::cin >> key;
+			KeyAuthApp.regstr(username, password, key);
+			break;
+		case 3:
+			std::cout << skCrypt("\n\n Enter username: ");
+			std::cin >> username;
+			std::cout << skCrypt("\n Enter license: ");
+			std::cin >> key;
+			KeyAuthApp.upgrade(username, key);
+			break;
+		case 4:
+			std::cout << skCrypt("\n Enter license: ");
+			std::cin >> key;
+			KeyAuthApp.license(key);
+			break;
+		default:
+			std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
+			Sleep(3000);
+			exit(0);
+		}
+
+		if (!KeyAuthApp.data.success)
+		{
+			std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+			Sleep(1500);
+			exit(0);
+		}
+		if (username.empty() || password.empty())
+		{
+			WriteKey("test.json", key);
+			std::cout << skCrypt("Successfully Created File For Auto Login");
+		}
+		else
+		{
+			WriteUserPass("test.json", username, password);
+			std::cout << skCrypt("Successfully Created File For Auto Login");
+		}
+
+
 	}
 	
 	std::cout << skCrypt("\n User data:");
