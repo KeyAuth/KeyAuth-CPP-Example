@@ -9,9 +9,9 @@ static std::tm timet_to_tm(time_t timestamp);
 
 using namespace KeyAuth;
 
-std::string name = ""; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
-std::string ownerid = ""; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
-std::string secret = ""; // app secret, the blurred text on licenses tab and other tabs
+std::string name = "Loader"; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+std::string ownerid = "xWtwUadxLp"; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+std::string secret = "b268190f363bbeb773dc2f3be42efbdaef336f78f7839f4889a58a22b63bd740"; // app secret, the blurred text on licenses tab and other tabs
 std::string version = "1.0"; // leave alone unless you've changed version on website
 std::string url = "https://keyauth.win/api/1.2/"; // change if you're self-hosting
 
@@ -67,8 +67,21 @@ int main()
 				Sleep(1500);
 				exit(0);
 			}
+			std::cout << skCrypt("\nSuccessfully Automatically Logged In");
 		}
-		std::cout << skCrypt("Successfully Automatically Logged In");
+		else
+		{
+			std::string username = LoginFromFileWithUser("test.json");
+			std::string password = LoginFromFileWithPass("test.json");
+			KeyAuthApp.login(username, password);
+			if (!KeyAuthApp.data.success)
+			{
+				std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+				Sleep(1500);
+				exit(0);
+			}
+			std::cout << skCrypt("\nSuccessfully Automatically Logged In");
+		}
 		//KeyAuthApp.log("Someone has Logged in")
 	}
 	else
