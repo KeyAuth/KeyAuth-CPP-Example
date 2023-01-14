@@ -72,7 +72,7 @@ std::string WriteUserPass(std::string path, std::string username, std::string pa
 std::string WriteKey(std::string path, std::string license)
 {
 	std::ofstream file(path, std::ios::out);
-	file << "{\"License\": " "\"" + license + "\"" + "}";
+	file << "{\"license\": " "\"" + license + "\"" + "}";
 	file.close();
 
 	if (!std::filesystem::exists(path))
