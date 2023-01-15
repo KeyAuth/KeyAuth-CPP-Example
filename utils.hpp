@@ -46,7 +46,7 @@ std::string LoginFromFileWithKey(std::string path)
 		return skCrypt("File Not Found").decrypt();
 	std::ifstream file(path);
 	json data = json::parse(file);
-	std::string key = data.value(skCrypt("License").decrypt(), skCrypt("Error 505").decrypt());
+	std::string key = data.value(skCrypt("license").decrypt(), skCrypt("Error 505").decrypt());
 	if (key == "Error 505")
 	{
 		return skCrypt("Failed").decrypt();
