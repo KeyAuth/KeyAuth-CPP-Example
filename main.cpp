@@ -57,9 +57,9 @@ int main()
 
 	if (std::filesystem::exists("test.json")) //change test.txt to the path of your file :smile:
 	{
-		if (LoginFromFileWithUser("test.json") == "Failed") 
+		if (!CheckIfJsonKeyExists("test.json", "username"))
 		{
-			std::string key = LoginFromFileWithKey("test.json");
+			std::string key = ReadFromJson("test.json", "license");
 			KeyAuthApp.license(key);
 			if (!KeyAuthApp.data.success)
 			{
@@ -71,8 +71,8 @@ int main()
 		}
 		else
 		{
-			std::string username = LoginFromFileWithUser("test.json");
-			std::string password = LoginFromFileWithPass("test.json");
+			std::string username = ReadFromJson("test.json", "username");
+			std::string password = ReadFromJson("test.json", "password");
 			KeyAuthApp.login(username, password);
 			if (!KeyAuthApp.data.success)
 			{
@@ -138,12 +138,12 @@ int main()
 		}
 		if (username.empty() || password.empty())
 		{
-			WriteKey("test.json", key);
+			WriteToJson("test.json", "license", key, false, "", "");
 			std::cout << skCrypt("Successfully Created File For Auto Login");
 		}
 		else
 		{
-			WriteUserPass("test.json", username, password);
+			WriteToJson("test.json", "username", username, true, "password", password);
 			std::cout << skCrypt("Successfully Created File For Auto Login");
 		}
 
