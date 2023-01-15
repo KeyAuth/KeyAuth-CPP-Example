@@ -22,11 +22,7 @@ bool CheckIfJsonKeyExists(std::string path, std::string section)
 		return skCrypt("File Not Found").decrypt();
 	std::ifstream file(path);
 	json data = json::parse(file);
-	if (data.contains("username"))
-	{
-		return true;
-	}
-	return false;
+	return data.contains("username");
 }
 
 bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2) 
