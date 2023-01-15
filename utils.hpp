@@ -6,77 +6,47 @@
 #include "json.hpp"
 using json = nlohmann::json;
 
-std::string LoginFromFileWithUser(std::string path) 
+std::string ReadFromJson(std::string path, std::string section) 
 {
 	if (!std::filesystem::exists(path))
 		return skCrypt("File Not Found").decrypt();
 	std::ifstream file(path);
 	json data = json::parse(file);
-	std::string user = data.value(skCrypt("username").decrypt(), skCrypt("Error 505").decrypt());
-	if (user == "Error 505")
-	{
-		return skCrypt("Failed").decrypt();
-	}
-	else
-	{
-		return user;
-	}
+	std::string content = data[section];
+	return content;
 }
 
-std::string LoginFromFileWithPass(std::string path)
+bool CheckIfJsonKeyExists(std::string path, std::string section) 
 {
 	if (!std::filesystem::exists(path))
 		return skCrypt("File Not Found").decrypt();
 	std::ifstream file(path);
 	json data = json::parse(file);
-	std::string pass = data.value(skCrypt("password").decrypt(), skCrypt("Error 505").decrypt());
-	if (pass == "Error 505")
+	if (data.contains("username"))
 	{
-		return skCrypt("Failed").decrypt();
+		return true;
 	}
-	else
-	{
-		return pass;
-	}
+	return false;
 }
 
-std::string LoginFromFileWithKey(std::string path)
+bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2) 
 {
-	if (!std::filesystem::exists(path))
-		return skCrypt("File Not Found").decrypt();
-	std::ifstream file(path);
-	json data = json::parse(file);
-	std::string key = data.value(skCrypt("license").decrypt(), skCrypt("Error 505").decrypt());
-	if (key == "Error 505")
+	json file;
+	if (!userpass) 
 	{
-		return skCrypt("Failed").decrypt();
+		file[name] = value;
 	}
 	else
 	{
-		return key;
+		file[name] = value;
+		file[name2] = value2;
 	}
-}
 
-std::string WriteUserPass(std::string path, std::string username, std::string password)
-{
-	std::string json2 = "{\"username\": " "\"" + username + "\"" ",\"password\": " "\"" + password + "\"" "}";
-	std::ofstream file(path, std::ios::out);
-	file << json2;
-	file.close();
+	std::ofstream jsonfile(path, std::ios::out);
+	jsonfile << file;
+	jsonfile.close();
 	if (!std::filesystem::exists(path))
-		return skCrypt("Failed To Create File").decrypt();
-	else
-		return skCrypt("Successfully Created").decrypt();
-}
+		return false;
 
-std::string WriteKey(std::string path, std::string license)
-{
-	std::ofstream file(path, std::ios::out);
-	file << "{\"license\": " "\"" + license + "\"" + "}";
-	file.close();
-
-	if (!std::filesystem::exists(path))
-		return skCrypt("Failed To Create File").decrypt();
-	else
-		return skCrypt("Successfully Created").decrypt();
+	return true;
 }
