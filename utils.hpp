@@ -12,8 +12,7 @@ std::string ReadFromJson(std::string path, std::string section)
 		return skCrypt("File Not Found").decrypt();
 	std::ifstream file(path);
 	json data = json::parse(file);
-	std::string content = data[section];
-	return content;
+	return data[section];
 }
 
 bool CheckIfJsonKeyExists(std::string path, std::string section) 
