@@ -3,6 +3,13 @@
 #include <vector>
 #include <fstream>
 
+struct channel_struct
+{
+	std::string author;
+	std::string message;
+	std::string timestamp;
+};
+
 namespace KeyAuth {
 	class api {
 	public:
@@ -17,7 +24,7 @@ namespace KeyAuth {
 		void log(std::string msg);
 		void license(std::string key);
 		std::string var(std::string varid);
-		std::string webhook(std::string id, std::string params);
+		std::string webhook(std::string id, std::string params, std::string body = "", std::string contenttype = "");
 		void setvar(std::string var, std::string vardata);
 		std::string getvar(std::string var);
 		bool checkblack();
@@ -27,6 +34,8 @@ namespace KeyAuth {
 		void button(std::string value);
 		std::vector<unsigned char> download(std::string fileid);
 		void regstr(std::string username, std::string password, std::string key);
+		void chatget(std::string channel);
+		bool chatsend(std::string message, std::string channel);
 
 		class data_class {
 		public:
@@ -45,6 +54,7 @@ namespace KeyAuth {
 			std::vector<std::string> subscriptions;
 			std::string expiry;
 			// response data
+			std::vector<channel_struct> channeldata;
 			bool success;
 			std::string message;
 		};

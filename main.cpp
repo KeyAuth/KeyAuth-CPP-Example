@@ -5,14 +5,16 @@
 std::string tm_to_readable_time(tm ctx);
 static std::time_t string_to_timet(std::string timestamp);
 static std::tm timet_to_tm(time_t timestamp);
+const std::string compilation_date = (std::string)skCrypt(__DATE__);
+const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 using namespace KeyAuth;
 
-std::string name = ""; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
-std::string ownerid = ""; // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
-std::string secret = ""; // app secret, the blurred text on licenses tab and other tabs
-std::string version = "1.0"; // leave alone unless you've changed version on website
-std::string url = "https://keyauth.win/api/1.2/"; // change if you're self-hosting
+std::string name = (std::string)skCrypt(""); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+std::string ownerid = (std::string)skCrypt(""); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+std::string secret = (std::string)skCrypt(""); // app secret, the blurred text on licenses tab and other tabs
+std::string version = (std::string)skCrypt("1.0"); // leave alone unless you've changed version on website
+std::string url = (std::string)skCrypt("https://keyauth.win/api/1.2/"); // change if you're self-hosting
 
 /*
 	Video on what ownerid and secret are https://youtu.be/uJ0Umy_C6Fg
@@ -26,7 +28,8 @@ api KeyAuthApp(name, ownerid, secret, version, url);
 
 int main()
 {
-	SetConsoleTitleA(skCrypt("Loader"));
+	std::string consoleTitle = (std::string)skCrypt("Loader - Built at:  ") + compilation_date + " " + compilation_time;
+	SetConsoleTitleA(consoleTitle.c_str());
 	std::cout << skCrypt("\n\n Connecting..");
 	KeyAuthApp.init();
 	if (!KeyAuthApp.data.success)
@@ -119,7 +122,8 @@ int main()
 	std::cout << skCrypt("\n Checking session validation status (remove this if causing your loader to be slow)");
 	KeyAuthApp.check();
 	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
-	
+    
+	#pragma region example functions
 	/*
 	std::cout << "\n Waiting for user to login";
 	KeyAuthApp.web_login();
@@ -159,17 +163,29 @@ int main()
 	
 
 	// KeyAuthApp.setvar("discord", "test#0001"); // set the value of user variable 'discord' to 'test#0001'
-	// std::cout << "\n user variable - " + KeyAuthApp.getvar("discord"); // get value of the user variable 'discord'
+	// std::string userVar = KeyAuthApp.getvar("discord");
+	// if (!KeyAuthApp.data.success) // check whether user variable exists and was retrieved correctly
+	// {
+	// 	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
+	// 	Sleep(1500);
+	// 	exit(0);
+	// }
+	// std::cout << "\n user variable - " + userVar; // get value of the user variable 'discord'
 	
+	/*
 	// let's say you want to send request to https://keyauth.win/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef&type=black&ip=1.1.1.1&hwid=abc
 	// but doing that from inside the loader is a bad idea as the link could get leaked.
 	// Instead, you should create a webhook with the https://keyauth.win/api/seller/?sellerkey=f43795eb89d6060b74cdfc56978155ef part as the URL
 	// then in your loader, put the rest of the link (the other paramaters) in your loader. And then it will send request from KeyAuth server and return response in string resp
 	
-	/*
-	// you have to replace the & sign with %26
-	// you have to replace the = sign with %3D
-	std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "");
+	// example to send normal request with no POST data
+	std::string resp = KeyAuthApp.webhook("5iZMT1f1XW", "?mak=best&debug=1");
+
+	// example to send form data
+	resp = KeyAuthApp.webhook("5iZMT1f1XW", "", "type=init&ver=1.0&name=test&ownerid=j9Gj0FTemM", "application/x-www-form-urlencoded");
+
+	// example to send JSON
+	resp = KeyAuthApp.webhook("5iZMT1f1XW", "", "{\"content\": \"webhook message here\",\"embeds\": null}", "application/json");
 	if (!KeyAuthApp.data.success) // check whether webhook request sent correctly
 	{
 		std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
@@ -185,6 +201,26 @@ int main()
 	// KeyAuthApp.log("user logged in"); // send event to logs. if you set discord webhook in app settings, it will send there instead of dashboard
 	// KeyAuthApp.ban(); // ban the current user, must be logged in
 	// KeyAuthApp.ban("Don't try to crack my loader, cunt."); // ban the current user (with a reason), must be logged in
+	
+	/*
+	// allow users to communicate amongst each other with through KeyAuth. Thank you Nuss31#1102 for this C++ implementation
+	// send chat messages
+	std::cout << skCrypt("\n Type Chat message: ");
+	std::string message;
+	//getline is important cause cin alone stops captureing after a space
+	std::getline(std::cin, message);
+	if (!KeyAuthApp.chatsend("test", message))
+	{
+		std::cout << KeyAuthApp.data.message << std::endl;
+	}
+	// get chat messages
+	KeyAuthApp.chatget("test");
+	for (int i = 0; i < KeyAuthApp.data.channeldata.size(); i++)
+	{
+		std::cout << "\n Author:" + KeyAuthApp.data.channeldata[i].author + " | Message:" + KeyAuthApp.data.channeldata[i].message + " | Send Time:" + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.channeldata[i].timestamp)));
+	}
+	*/
+	#pragma endregion Example on how to use KeyAuth functions
 
 	std::cout << skCrypt("\n\n Closing in ten seconds...");
 	Sleep(10000);

@@ -321,6 +321,22 @@ file.close();
 
 Allow users to communicate amongst themselves in your program.
 
-There's a console example here https://github.com/nuss31/KeyAuth-Cpp-Chat-Libary-Example
+```cpp
+KeyAuthApp.chatget("test");
+for (int i = 0; i < KeyAuthApp.data.channeldata.size(); i++)
+{
+	std::cout << "\n Author:" + KeyAuthApp.data.channeldata[i].author + " | Message:" + KeyAuthApp.data.channeldata[i].message + " | Send Time:" + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.channeldata[i].timestamp)));
+}
+```
 
-And in our Discord server https://discord.gg/keyauth (after verifying for chat), you can see this ImGui example https://discord.com/channels/824397012685291520/824399478232055848/927262833031393313
+```cpp
+std::cout << skCrypt("\n Type Chat message: ");
+std::string message;
+std::getline(std::cin, message);
+if (!KeyAuthApp.chatsend("test", message))
+{
+	std::cout << KeyAuthApp.data.message << std::endl;
+}
+```
+
+Here's an ImGui example https://github.com/KeyAuth-Archive/KeyAuth-Chat-ImGui-CPP
