@@ -1,6 +1,6 @@
 # KeyAuth-CPP-Example
 
-KeyAuth CPP Example For The https://keyauth.cc Authentication system.
+KeyAuth C++ example for the https://keyauth.cc authentication system.
 
 The source code of the static library for KeyAuth is here https://github.com/KeyAuth/keyauth-cpp-library
 
@@ -48,9 +48,9 @@ For API, `keyauth.cc` will not work because I purposefully blocked it on there s
 
 ## **`KeyAuthApp` instance definition**
 
-Visit and select your application, then click on the **C++** tab
+Visit https://keyauth.cc/app/ and select your application, then click on the **C++** tab
 
-It'll provide you with the code which you should replace with in the [`main.cpp`](https://github.com/KeyAuth/KeyAuth-CPP-Example/blob/main/main.cpp#L11-L14) file
+It'll provide you with the code which you should replace with in the [`main.cpp`](https://github.com/KeyAuth/KeyAuth-CPP-Example/blob/main/main.cpp#L13-L16) file
 
 ```cpp
 std::string name = "example"; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
@@ -211,7 +211,7 @@ std::cout << skCrypt("\n Subscription expiry: ") << tm_to_readable_time(timet_to
 
 ## **Check subscription name of user**
 
-If you want to wall off parts of your app to only certain users, you can have multiple subscriptions with different names. Then, when you create licenses that correspond to the level of that subscription, users who use those licenses will get a subscription with the name of the subscription that corresponds to the level of the license key they used. The `SubExist` function is in the `Program.cs` file
+If you want to wall off parts of your app to only certain users, you can have multiple subscriptions with different names. Then, when you create licenses that correspond to the level of that subscription, users who use those licenses will get a subscription with the name of the subscription that corresponds to the level of the license key they used.
 
 ```cpp
 for (std::string subs : KeyAuthApp.data.subscriptions)
@@ -248,7 +248,7 @@ KeyAuthApp.setvar("discord", "test#0001"); // set the value of user variable 'di
 
 ## **Application Logs**
 
-Can be used to log data. Good for anti-debug alerts and maybe error debugging. If you set Discord webhook in the app settings of the Dashboard, it will send log messages to your Discord webhook rather than store them on site. It's recommended that you set Discord webhook, as logs on site may be deleted after a couple months of their creation.
+Can be used to log data. Good for anti-debug alerts and maybe error debugging. If you set Discord webhook in the app settings of the Dashboard, it will send log messages to your Discord webhook rather than store them on site. It's recommended that you set Discord webhook, as logs on site are deleted 1 month after being sent.
 
 You can use the log function before login & after login.
 
@@ -282,12 +282,13 @@ KeyAuthApp.ban("Don't try to crack my loader, cunt.");
 
 Tutorial video https://www.youtube.com/watch?v=ENRaNPPYJbc
 
+> **Note**
+> Read documentation for KeyAuth webhooks here https://docs.keyauth.cc/website/dashboard/webhooks
+
 Send HTTP requests to URLs securely without leaking the URL in your application. You should definitely use if you want to send requests to SellerAPI from your application, otherwise if you don't use you'll be leaking your seller key to everyone. And then someone can mess up your application.
 
 ```cpp
-// you have to replace the & sign with %26
-// you have to replace the = sign with %3D
-std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "");
+std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "&mak=best&debug=1");
 if (!KeyAuthApp.data.success) // check whether webhook request sent correctly
 {
 	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
@@ -298,6 +299,9 @@ std::cout << "\n Response recieved from webhook request: " + resp;
 ```
 
 ## **Download file**
+
+> **Note**
+> Read documentation for KeyAuth files here https://docs.keyauth.cc/website/dashboard/files
 
 Keep files secure by providing KeyAuth your file download link on the KeyAuth dashboard. Make sure this is a direct download link (as soon as you go to the link, it starts downloading without you clicking anything). The KeyAuth download function provides the bytes, and then you get to decide what to do with those. This example shows how to write it to a file named `text.txt` in the same folder as the program, though you could execute with RunPE or whatever you want.
 
