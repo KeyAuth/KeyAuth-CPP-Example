@@ -301,7 +301,7 @@ std::cout << "\n Response recieved from webhook request: " + resp;
 
 Keep files secure by providing KeyAuth your file download link on the KeyAuth dashboard. Make sure this is a direct download link (as soon as you go to the link, it starts downloading without you clicking anything). The KeyAuth download function provides the bytes, and then you get to decide what to do with those. This example shows how to write it to a file named `text.txt` in the same folder as the program, though you could execute with RunPE or whatever you want.
 
-`362906` is the webhook ID you get from the dashboard after adding file.
+`362906` is the file ID you get from the dashboard after adding file.
 
 ```cpp
 // remember, certain paths like windows folder will require you to turn on auto run as admin https://stackoverflow.com/a/19617989
