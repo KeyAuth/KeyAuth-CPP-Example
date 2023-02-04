@@ -344,3 +344,18 @@ if (!KeyAuthApp.chatsend("test", message))
 ```
 
 Here's an ImGui example https://github.com/KeyAuth-Archive/KeyAuth-Chat-ImGui-CPP
+
+## **Changing username**
+
+Allow users to change their username when logged-in.
+
+```cpp
+std::cout << skCrypt("\n Change Username To: ");
+std::string newusername;
+std::cin >> newusername;
+KeyAuthApp.changeusername(newusername);
+if (KeyAuthApp.data.success) 
+{
+        std::cout << KeyAuthApp.data.message << std::endl;
+}
+```
