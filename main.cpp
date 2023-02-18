@@ -116,6 +116,7 @@ int main()
 	std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
 	std::cout << skCrypt("\n Subscription(s): ");
 
+	for (int i = 0; i < KeyAuthApp.data.subscriptions.size(); i++) { // Prompto#7895 was here
 		auto sub = KeyAuthApp.data.subscriptions.at(i);
 		std::cout << skCrypt("\n name: ") << sub.name;
 		std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
