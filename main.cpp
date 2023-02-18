@@ -114,11 +114,14 @@ int main()
 	std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.data.hwid;
 	std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.createdate)));
 	std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
-	std::cout << skCrypt("\n Subscription name(s): ");
-	std::string subs;
-	for (std::string value : KeyAuthApp.data.subscriptions)subs += value + " ";
-	std::cout << subs;
-	std::cout << skCrypt("\n Subscription expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
+	std::cout << skCrypt("\n Subscription(s): ");
+
+	for (int i = 0; i < KeyAuthApp.data.subscriptions.size(); i++) {
+		auto sub = KeyAuthApp.data.subscriptions.at(i);
+		std::cout << skCrypt("\n name: ") << sub.name;
+		std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
+	}
+
 	std::cout << skCrypt("\n Checking session validation status (remove this if causing your loader to be slow)");
 	KeyAuthApp.check();
 	std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;

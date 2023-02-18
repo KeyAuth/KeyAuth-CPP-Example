@@ -37,6 +37,12 @@ namespace KeyAuth {
 		void chatget(std::string channel);
 		bool chatsend(std::string message, std::string channel);
 
+		class subscriptions_class {
+		public:
+			std::string name;
+			std::string expiry;
+		};
+
 		class data_class {
 		public:
 			// app data
@@ -51,8 +57,9 @@ namespace KeyAuth {
 			std::string hwid;
 			std::string createdate;
 			std::string lastlogin;
-			std::vector<std::string> subscriptions;
-			std::string expiry;
+
+			std::vector<subscriptions_class> subscriptions;
+
 			// response data
 			std::vector<channel_struct> channeldata;
 			bool success;
