@@ -10,11 +10,11 @@ const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 using namespace KeyAuth;
 
-std::string name = (std::string)skCrypt(""); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
-std::string ownerid = (std::string)skCrypt(""); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
-std::string secret = (std::string)skCrypt(""); // app secret, the blurred text on licenses tab and other tabs
-std::string version = (std::string)skCrypt("1.0"); // leave alone unless you've changed version on website
-std::string url = (std::string)skCrypt("https://keyauth.win/api/1.2/"); // change if you're self-hosting
+std::string name = skCrypt("").decrypt(); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+std::string ownerid = skCrypt("").decrypt(); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+std::string secret = skCrypt("").decrypt(); // app secret, the blurred text on licenses tab and other tabs
+std::string version = skCrypt("1.0").decrypt(); // leave alone unless you've changed version on website
+std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
 
 /*
 	Video on what ownerid and secret are https://youtu.be/uJ0Umy_C6Fg
@@ -60,9 +60,7 @@ int main()
 	std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 	
 	int option;
-	std::string username;
-	std::string password;
-	std::string key;
+	std::string username, password, key;
 	
 	std::cin >> option;
 	switch (option)
