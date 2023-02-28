@@ -36,6 +36,7 @@ namespace KeyAuth {
 		void regstr(std::string username, std::string password, std::string key);
 		void chatget(std::string channel);
 		bool chatsend(std::string message, std::string channel);
+		void changeusername(std::string newusername);
 
 		class data_class {
 		public:
