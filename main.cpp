@@ -66,6 +66,7 @@ int main()
 			KeyAuthApp.license(key);
 			if (!KeyAuthApp.data.success)
 			{
+				std::remove("test.json");
 				std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
 				Sleep(1500);
 				exit(0);
@@ -79,6 +80,7 @@ int main()
 			KeyAuthApp.login(username, password);
 			if (!KeyAuthApp.data.success)
 			{
+				std::remove("test.json");
 				std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
 				Sleep(1500);
 				exit(0);
