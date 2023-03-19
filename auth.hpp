@@ -28,15 +28,16 @@ namespace KeyAuth {
 		void setvar(std::string var, std::string vardata);
 		std::string getvar(std::string var);
 		bool checkblack();
-		void upgrade(std::string username, std::string key);
-		void login(std::string username, std::string password);
 		void web_login();
 		void button(std::string value);
+		void upgrade(std::string username, std::string key);
+		void login(std::string username, std::string password);
 		std::vector<unsigned char> download(std::string fileid);
-		void regstr(std::string username, std::string password, std::string key);
+		void regstr(std::string username, std::string password, std::string key, std::string email = "");
 		void chatget(std::string channel);
 		bool chatsend(std::string message, std::string channel);
 		void changeusername(std::string newusername);
+		std::string fetchonline();
 
 		class subscriptions_class {
 		public:
