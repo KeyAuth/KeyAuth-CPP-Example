@@ -1,0 +1,13 @@
+name: Pull Request Notification
+
+on:
+  pull_request_target:
+    types:
+      - opened
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use global PR notification workflow
+        uses: ./.github/workflows/pr_notification_global.yml@main
