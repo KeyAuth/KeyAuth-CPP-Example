@@ -8,5 +8,7 @@ on:
 jobs:
   notify:
     uses: KeyAuth/.github/.github/workflows/pr_notification_global.yml@main
+    with:
+      github-token: ${{ secrets.ORG_GITHUB_TOKEN }}
     secrets:
       DISCORD_PR: ${{ secrets.DISCORD_PR }}
