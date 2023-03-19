@@ -7,7 +7,6 @@ on:
 
 jobs:
   notify:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Use global PR notification workflow
-        uses: ./.github/workflows/pr_notification.yml@main
+    uses: org/.github/.github/workflows/pr_notification_global.yml@main
+    secrets:
+      DISCORD_PR: ${{ secrets.DISCORD_PR }}
