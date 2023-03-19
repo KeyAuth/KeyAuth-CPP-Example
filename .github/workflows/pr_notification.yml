@@ -7,6 +7,6 @@ on:
 
 jobs:
   notify:
-    uses: org/.github/.github/workflows/pr_notification_global.yml@main
+    uses: org/.github/.github/workflows/pr_notification_global.yml
     secrets:
       DISCORD_PR: ${{ secrets.DISCORD_PR }}
