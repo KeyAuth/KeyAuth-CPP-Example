@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Use global PR notification workflow
-        uses: ./.github/workflows/pr_notification_global.yml@main
+        uses: ./.github/workflows/pr_notification.yml@main
