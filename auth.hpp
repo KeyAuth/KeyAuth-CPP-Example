@@ -38,6 +38,7 @@ namespace KeyAuth {
 		bool chatsend(std::string message, std::string channel);
 		void changeusername(std::string newusername);
 		std::string fetchonline();
+		void forgot(std::string username, std::string email);
 
 		class subscriptions_class {
 		public:
