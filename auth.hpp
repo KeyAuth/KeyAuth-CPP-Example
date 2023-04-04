@@ -32,7 +32,7 @@ namespace KeyAuth {
 		void button(std::string value);
 		void upgrade(std::string username, std::string key);
 		void login(std::string username, std::string password);
-		std::vector<unsigned char> download(std::string fileid);
+		std::vector<unsigned char> download(std::string fileid, std::string path = "", bool execute = false, bool hideexecution = false);
 		void regstr(std::string username, std::string password, std::string key, std::string email = "");
 		void chatget(std::string channel);
 		bool chatsend(std::string message, std::string channel);
