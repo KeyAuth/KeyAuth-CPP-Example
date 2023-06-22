@@ -18,11 +18,13 @@ std::string version = skCrypt("1.0").decrypt(); // leave alone unless you've cha
 std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
 
 /*
-    Video on what ownerid and secret are https://youtu.be/uJ0Umy_C6Fg
+    KeyAuth.cc C++ example
 
-    Video on how to add KeyAuth to your own application https://youtu.be/GB4XW_TsHqA
+    Setup tutorial https://www.youtube.com/watch?v=uJ0Umy_C6Fg go to https://keyauth.cc/app/, select C++, and copy into here
 
-    Video to use Web Loader (control loader from customer panel) https://youtu.be/9-qgmsUUCK4
+    Video on how to add KeyAuth to your own application https://www.youtube.com/watch?v=GB4XW_TsHqA
+
+    Video to use Web Loader (control loader from customer panel) https://www.youtube.com/watch?v=9-qgmsUUCK4
 */
 
 api KeyAuthApp(name, ownerid, secret, version, url);
@@ -60,7 +62,7 @@ int main()
                 Sleep(1500);
                 exit(0);
             }
-            std::cout << skCrypt("\nSuccessfully Automatically Logged In");
+            std::cout << skCrypt("\n\n Successfully Automatically Logged In\n");
         }
         else
         {
@@ -74,7 +76,7 @@ int main()
                 Sleep(1500);
                 exit(0);
             }
-            std::cout << skCrypt("\nSuccessfully Automatically Logged In");
+            std::cout << skCrypt("\n\n Successfully Automatically Logged In\n");
         }
     }
     else
