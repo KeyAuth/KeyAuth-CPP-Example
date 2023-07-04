@@ -42,13 +42,6 @@ int main()
         exit(0);
     }
 
-    std::cout << skCrypt("\n\n App data:");
-    std::cout << skCrypt("\n Number of users: ") << KeyAuthApp.data.numUsers;
-    std::cout << skCrypt("\n Number of online users: ") << KeyAuthApp.data.numOnlineUsers;
-    std::cout << skCrypt("\n Number of keys: ") << KeyAuthApp.data.numKeys;
-    std::cout << skCrypt("\n Application Version: ") << KeyAuthApp.data.version;
-    std::cout << skCrypt("\n Customer panel link: ") << KeyAuthApp.data.customerPanelLink;
-
     if (std::filesystem::exists("test.json")) //change test.txt to the path of your file :smile:
     {
         if (!CheckIfJsonKeyExists("test.json", "username"))

@@ -79,8 +79,8 @@ if (!KeyAuthApp.data.success)
 ## **Display application information**
 
 ```cpp
-std::cout << skCrypt("\n\n App data:");
-std::cout << skCrypt("\n Number of users: ") << KeyAuthApp.data.numUsers;
+KeyAuthApp.fetchstats();
+std::cout << skCrypt("\n\n Number of users: ") << KeyAuthApp.data.numUsers;
 std::cout << skCrypt("\n Number of online users: ") << KeyAuthApp.data.numOnlineUsers;
 std::cout << skCrypt("\n Number of keys: ") << KeyAuthApp.data.numKeys;
 std::cout << skCrypt("\n Application Version: ") << KeyAuthApp.data.version;
