@@ -6,7 +6,7 @@ The source code of the static library for KeyAuth is here https://github.com/Key
 
 ## **Bugs**
 
-If the default example not added to your software isn't functioning how it should, please join the Discord server https://discord.gg/keyauth and submit the issue in the `#bugs` channel.
+If the default example not added to your software isn't functioning how it should, please report a bug here https://keyauth.cc/app/?page=forms
 
 However, we do **NOT** provide support for adding KeyAuth to your project. If you can't figure this out you should use Google or YouTube to learn more about the programming language you want to sell a program in.
 
@@ -38,7 +38,7 @@ Thank you for your compliance, we work hard on the development of KeyAuth and do
 
 ## **What is KeyAuth?**
 
-KeyAuth is an Open source authentication system with cloud hosting plans as well. Client SDKs available for [C#](https://github.com/KeyAuth/KeyAuth-CSHARP-Example), [C++](https://github.com/KeyAuth/KeyAuth-CPP-Example), [Python](https://github.com/KeyAuth/KeyAuth-Python-Example), [Java](https://github.com/SprayDown/KeyAuth-JAVA-api), [JavaScript](https://github.com/mazkdevf/KeyAuth-JS-Example), [VB.NET](https://github.com/KeyAuth/KeyAuth-VB-Example), [PHP](https://github.com/KeyAuth/KeyAuth-PHP-Example), [Rust](https://github.com/KeyAuth/KeyAuth-Rust-Example), [Go](https://github.com/mazkdevf/KeyAuth-Go-Example), [Lua](https://github.com/mazkdevf/KeyAuth-Lua-Examples), [Ruby](https://github.com/mazkdevf/KeyAuth-Ruby-Example), and [Perl](https://github.com/mazkdevf/KeyAuth-Perl-Example). KeyAuth has several unique features such as memory streaming, webhook function where you can send requests to API without leaking the API, discord webhook notifications, ban the user securely through the application at your discretion. Feel free to join https://discord.gg/keyauth if you have questions or suggestions.
+KeyAuth is an Open source authentication system with cloud hosting plans as well. Client SDKs available for [C#](https://github.com/KeyAuth/KeyAuth-CSHARP-Example), [C++](https://github.com/KeyAuth/KeyAuth-CPP-Example), [Python](https://github.com/KeyAuth/KeyAuth-Python-Example), [Java](https://github.com/SprayDown/KeyAuth-JAVA-api), [JavaScript](https://github.com/mazkdevf/KeyAuth-JS-Example), [VB.NET](https://github.com/KeyAuth/KeyAuth-VB-Example), [PHP](https://github.com/KeyAuth/KeyAuth-PHP-Example), [Rust](https://github.com/KeyAuth/KeyAuth-Rust-Example), [Go](https://github.com/mazkdevf/KeyAuth-Go-Example), [Lua](https://github.com/mazkdevf/KeyAuth-Lua-Examples), [Ruby](https://github.com/mazkdevf/KeyAuth-Ruby-Example), and [Perl](https://github.com/mazkdevf/KeyAuth-Perl-Example). KeyAuth has several unique features such as memory streaming, webhook function where you can send requests to API without leaking the API, discord webhook notifications, ban the user securely through the application at your discretion. Feel free to join https://t.me/keyauth if you have questions or suggestions.
 
 ## **Customer connection issues?**
 
@@ -50,7 +50,7 @@ For API, `keyauth.cc` will not work because I purposefully blocked it on there s
 
 Visit https://keyauth.cc/app/ and select your application, then click on the **C++** tab
 
-It'll provide you with the code which you should replace with in the [`main.cpp`](https://github.com/KeyAuth/KeyAuth-CPP-Example/blob/main/main.cpp#L13-L16) file
+It'll provide you with the code which you should replace with in the [`main.cpp`](https://github.com/KeyAuth/KeyAuth-CPP-Example/blob/8f3215d5259c42f25854476c49ee443d67af639a/main.cpp#L14-L17) file
 
 ```cpp
 std::string name = "example"; // application name. right above the blurred text aka the secret on the licenses tab among other tabs
