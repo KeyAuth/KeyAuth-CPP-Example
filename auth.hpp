@@ -7,7 +7,6 @@ struct channel_struct
 {
 	std::string author;
 	std::string message;
-	std::string timestamp;
 };
 
 namespace KeyAuth {
