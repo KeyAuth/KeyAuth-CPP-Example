@@ -126,12 +126,12 @@ int main()
         }
         if (username.empty() || password.empty())
         {
-            WriteToJson("test.json", "license", key, false, "", "");
+            WriteToJson("test.json", "license", key);
             std::cout << skCrypt("Successfully Created File For Auto Login");
         }
         else
         {
-            WriteToJson("test.json", "username", username, true, "password", password);
+            WriteToJson("test.json", "username", username, "password", password);
             std::cout << skCrypt("Successfully Created File For Auto Login");
         }
 

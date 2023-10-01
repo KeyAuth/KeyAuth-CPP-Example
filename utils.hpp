@@ -24,18 +24,11 @@ bool CheckIfJsonKeyExists(std::string path, std::string section)
 	return data.contains(section);
 }
 
-bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2) 
+bool WriteToJson(std::string path, std::string key, std::string value, std::string key2 = "", std::string value2 = "") 
 {
 	json file;
-	if (!userpass) 
-	{
-		file[name] = value;
-	}
-	else
-	{
-		file[name] = value;
-		file[name2] = value2;
-	}
+	file[key] = value;
+	key2 == "" && value2 == "" ? file[key] = value; : file[key] = value; file[key2] = value2;
 
 	std::ofstream jsonfile(path, std::ios::out);
 	jsonfile << file;
