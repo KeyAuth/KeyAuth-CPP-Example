@@ -32,7 +32,7 @@ int main()
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
         Sleep(1500);
-        return 1;
+        exit(1);
     }
 
     if (std::filesystem::exists("test.json")) //change test.txt to the path of your file :smile:
@@ -46,7 +46,7 @@ int main()
                 std::remove("test.json");
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
                 Sleep(1500);
-                return 1;
+                exit(1);
             }
             std::cout << skCrypt("\n\n Successfully Automatically Logged In\n");
         }
@@ -60,7 +60,7 @@ int main()
                 std::remove("test.json");
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
                 Sleep(1500);
-                return 1;
+                exit(1);
             }
             std::cout << skCrypt("\n\n Successfully Automatically Logged In\n");
         }
@@ -108,14 +108,14 @@ int main()
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
             Sleep(3000);
-            return 1;
+            exit(1);
         }
 
         if (!KeyAuthApp.data.success)
         {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
             Sleep(1500);
-            return 1;
+            exit(1);
         }
         if (username.empty() || password.empty())
         {
@@ -147,6 +147,7 @@ int main()
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
     Sleep(5000);
+    
     return 0;
 }
 
