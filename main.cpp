@@ -11,27 +11,20 @@ const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 using namespace KeyAuth;
 
-std::string name = skCrypt("").decrypt(); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
-std::string ownerid = skCrypt("").decrypt(); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
-std::string secret = skCrypt("").decrypt(); // app secret, the blurred text on licenses tab and other tabs
-std::string version = skCrypt("1.0").decrypt(); // leave alone unless you've changed version on website
-std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
+auto name = skCrypt(""); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
+auto ownerid = skCrypt(""); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
+auto secret = skCrypt(""); // app secret, the blurred text on licenses tab and other tabs
+auto version = skCrypt("1.0"); // leave alone unless you've changed version on website
+auto url = skCrypt("https://keyauth.win/api/1.2/"); // change if you're self-hosting
 
-/*
-    KeyAuth.cc C++ example
-
-    Setup tutorial https://www.youtube.com/watch?v=uJ0Umy_C6Fg go to https://keyauth.cc/app/, select C++, and copy into here
-
-    Video on how to add KeyAuth to your own application https://www.youtube.com/watch?v=GB4XW_TsHqA
-
-    Video to use Web Loader (control loader from customer panel) https://www.youtube.com/watch?v=9-qgmsUUCK4
-*/
-
-api KeyAuthApp(name, ownerid, secret, version, url);
+api KeyAuthApp(name.decrypt(), ownerid.decrypt(), secret.decrypt(), version.decrypt(), url.decrypt());
 
 int main()
 {
-    std::string consoleTitle = (std::string)skCrypt("Loader - Built at:  ") + compilation_date + " " + compilation_time;
+    // Freeing memory to prevent memory leak or memory scraping
+    name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear();
+    
+    std::string consoleTitle = skCrypt("Loader - Built at:  ").decrypt() + compilation_date + " " + compilation_time;
     SetConsoleTitleA(consoleTitle.c_str());
     std::cout << skCrypt("\n\n Connecting..");
     KeyAuthApp.init();
@@ -39,7 +32,7 @@ int main()
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
         Sleep(1500);
-        exit(0);
+        exit(1);
     }
 
     if (std::filesystem::exists("test.json")) //change test.txt to the path of your file :smile:
@@ -53,7 +46,7 @@ int main()
                 std::remove("test.json");
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
                 Sleep(1500);
-                exit(0);
+                exit(1);
             }
             std::cout << skCrypt("\n\n Successfully Automatically Logged In\n");
         }
@@ -67,7 +60,7 @@ int main()
                 std::remove("test.json");
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
                 Sleep(1500);
-                exit(0);
+                exit(1);
             }
             std::cout << skCrypt("\n\n Successfully Automatically Logged In\n");
         }
@@ -115,14 +108,14 @@ int main()
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
             Sleep(3000);
-            exit(0);
+            exit(1);
         }
 
         if (!KeyAuthApp.data.success)
         {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
             Sleep(1500);
-            exit(0);
+            exit(1);
         }
         if (username.empty() || password.empty())
         {
@@ -154,7 +147,8 @@ int main()
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
     Sleep(5000);
-    exit(0);
+    
+    return 0;
 }
 
 std::string tm_to_readable_time(tm ctx) {
