@@ -1,4 +1,4 @@
-# KeyAuth-CPP-Example
+# KeyAuth-CPP-Example : Please star 🌟
 
 KeyAuth C++ example for the https://keyauth.cc authentication system.
 
