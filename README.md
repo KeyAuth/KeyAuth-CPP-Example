@@ -283,7 +283,7 @@ KeyAuthApp.ban("Don't try to crack my loader, cunt.");
 Tutorial video https://www.youtube.com/watch?v=ENRaNPPYJbc
 
 > **Note**
-> Read documentation for KeyAuth webhooks here https://docs.keyauth.cc/website/dashboard/webhooks](https://docs.keyauth.cc/website/dashboard/webhooks](https://keyauth.readme.io/reference/webhooks-1
+> Read documentation for KeyAuth webhooks here https://keyauth.readme.io/reference/webhooks-1
 
 Send HTTP requests to URLs securely without leaking the URL in your application. You should definitely use if you want to send requests to SellerAPI from your application, otherwise if you don't use you'll be leaking your seller key to everyone. And then someone can mess up your application.
 
