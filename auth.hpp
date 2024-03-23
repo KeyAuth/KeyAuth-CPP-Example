@@ -36,7 +36,7 @@ namespace KeyAuth {
 		void regstr(std::string username, std::string password, std::string key, std::string email = "");
 		void chatget(std::string channel);
 		bool chatsend(std::string message, std::string channel);
-		void changeusername(std::string newusername);
+		void changeUsername(std::string newusername);
 		std::string fetchonline();
 		void fetchstats();
 		void forgot(std::string username, std::string email);
@@ -47,14 +47,9 @@ namespace KeyAuth {
 			std::string expiry;
 		};
 
-		class data_class {
+		class userdata {
 		public:
-			// app data
-			std::string numUsers;
-			std::string numOnlineUsers;
-			std::string numKeys;
-			std::string version;
-			std::string customerPanelLink;
+
 			// user data
 			std::string username;
 			std::string ip;
@@ -63,13 +58,29 @@ namespace KeyAuth {
 			std::string lastlogin;
 
 			std::vector<subscriptions_class> subscriptions;
+		};
 
+		class appdata {
+		public:
+			// app data
+			std::string numUsers;
+			std::string numOnlineUsers;
+			std::string numKeys;
+			std::string version;
+			std::string customerPanelLink;
+		};
+
+		class responsedata {
+		public:
 			// response data
 			std::vector<channel_struct> channeldata;
-			bool success;
+			bool success{};
 			std::string message;
 		};
-		data_class data;
+
+		userdata user_data;
+		appdata app_data;
+		responsedata response;
 
 	private:
 		std::string sessionid, enckey;
