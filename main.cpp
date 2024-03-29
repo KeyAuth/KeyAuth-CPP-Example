@@ -22,15 +22,14 @@ api KeyAuthApp(name.decrypt(), ownerid.decrypt(), secret.decrypt(), version.decr
 int main()
 {
     // Freeing memory to prevent memory leak or memory scraping
-    name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear();
-    
+     name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear();
     std::string consoleTitle = skCrypt("Loader - Built at:  ").decrypt() + compilation_date + " " + compilation_time;
     SetConsoleTitleA(consoleTitle.c_str());
     std::cout << skCrypt("\n\n Connecting..");
     KeyAuthApp.init();
-    if (!KeyAuthApp.data.success)
+    if (!KeyAuthApp.response.success)
     {
-        std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+        std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
         Sleep(1500);
         exit(1);
     }
@@ -41,10 +40,10 @@ int main()
         {
             std::string key = ReadFromJson("test.json", "license");
             KeyAuthApp.license(key);
-            if (!KeyAuthApp.data.success)
+            if (!KeyAuthApp.response.success)
             {
                 std::remove("test.json");
-                std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+                std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
                 Sleep(1500);
                 exit(1);
             }
@@ -55,10 +54,10 @@ int main()
             std::string username = ReadFromJson("test.json", "username");
             std::string password = ReadFromJson("test.json", "password");
             KeyAuthApp.login(username, password);
-            if (!KeyAuthApp.data.success)
+            if (!KeyAuthApp.response.success)
             {
                 std::remove("test.json");
-                std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+                std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
                 Sleep(1500);
                 exit(1);
             }
@@ -111,9 +110,9 @@ int main()
             exit(1);
         }
 
-        if (!KeyAuthApp.data.success)
+        if (!KeyAuthApp.response.success)
         {
-            std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+            std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
             Sleep(1500);
             exit(1);
         }
@@ -130,24 +129,24 @@ int main()
 
 
     }
-    
+
     std::cout << skCrypt("\n User data:");
-    std::cout << skCrypt("\n Username: ") << KeyAuthApp.data.username;
-    std::cout << skCrypt("\n IP address: ") << KeyAuthApp.data.ip;
-    std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.data.hwid;
-    std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.createdate)));
-    std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
+    std::cout << skCrypt("\n Username: ") << KeyAuthApp.user_data.username;
+    std::cout << skCrypt("\n IP address: ") << KeyAuthApp.user_data.ip;
+    std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.user_data.hwid;
+    std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.createdate)));
+    std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.lastlogin)));
     std::cout << skCrypt("\n Subscription(s): ");
 
-    for (int i = 0; i < KeyAuthApp.data.subscriptions.size(); i++) {
-        auto sub = KeyAuthApp.data.subscriptions.at(i);
+    for (int i = 0; i < KeyAuthApp.user_data.subscriptions.size(); i++) {
+        auto sub = KeyAuthApp.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
     }
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
     Sleep(5000);
-    
+
     return 0;
 }
 
