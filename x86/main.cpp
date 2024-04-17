@@ -11,12 +11,12 @@ const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 using namespace KeyAuth;
 
-std::string name = skCrypt("Loader").decrypt();
-std::string ownerid = skCrypt("xWtwUadxLp").decrypt();
-std::string secret = skCrypt("b268190f363bbeb773dc2f3be42efbdaef336f78f7839f4889a58a22b63bd740").decrypt();
+std::string name = skCrypt("name").decrypt();
+std::string ownerid = skCrypt("ownerid").decrypt();
+std::string secret = skCrypt("secret").decrypt();
 std::string version = skCrypt("1.0").decrypt();
 std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
-std::string path = skCrypt("C:\\ProgramData\\testing.txt").decrypt();
+std::string path = skCrypt("path (optional)").decrypt();
 
 api KeyAuthApp(name, ownerid, secret, version, url, path);
 
