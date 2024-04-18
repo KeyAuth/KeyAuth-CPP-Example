@@ -11,13 +11,14 @@ const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 using namespace KeyAuth;
 
-auto name = skCrypt(""); // application name. right above the blurred text aka the secret on the licenses tab among other tabs
-auto ownerid = skCrypt(""); // ownerid, found in account settings. click your profile picture on top right of dashboard and then account settings.
-auto secret = skCrypt(""); // app secret, the blurred text on licenses tab and other tabs
-auto version = skCrypt("1.0"); // leave alone unless you've changed version on website
-auto url = skCrypt("https://keyauth.win/api/1.2/"); // change if you're self-hosting
+std::string name = skCrypt("name").decrypt();
+std::string ownerid = skCrypt("ownerid").decrypt();
+std::string secret = skCrypt("secret").decrypt();
+std::string version = skCrypt("1.0").decrypt();
+std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
+std::string path = skCrypt("path (optional)").decrypt();
 
-api KeyAuthApp(name.decrypt(), ownerid.decrypt(), secret.decrypt(), version.decrypt(), url.decrypt());
+api KeyAuthApp(name, ownerid, secret, version, url, path);
 
 int main()
 {

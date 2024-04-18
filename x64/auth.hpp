@@ -14,9 +14,9 @@ namespace KeyAuth {
 	class api {
 	public:
 
-		std::string name, ownerid, secret, version, url;
+		std::string name, ownerid, secret, version, url, path;
 
-		api(std::string name, std::string ownerid, std::string secret, std::string version, std::string url) : name(name), ownerid(ownerid), secret(secret), version(version), url(url) {}
+		api(std::string name, std::string ownerid, std::string secret, std::string version, std::string url, std::string path) : name(name), ownerid(ownerid), secret(secret), version(version), url(url), path(path) {}
 
 		void ban(std::string reason = "");
 		void init();
