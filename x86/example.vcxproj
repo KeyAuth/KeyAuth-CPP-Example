@@ -169,6 +169,7 @@
     <ClInclude Include="lib\curl\urlapi.h" />
     <ClInclude Include="lib\hmac_sha256.h" />
     <ClInclude Include="lib\includes.hpp" />
+    <ClInclude Include="lib\integrity.h" />
     <ClInclude Include="lib\nlohmann\adl_serializer.hpp" />
     <ClInclude Include="lib\nlohmann\byte_container_with_subtype.hpp" />
     <ClInclude Include="lib\nlohmann\detail\conversions\from_json.hpp" />

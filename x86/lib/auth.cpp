@@ -55,6 +55,7 @@
 #include <algorithm>
 
 #include "Security.hpp"
+#include "integrity.h"
 
 #define SHA256_HASH_SIZE 32
 
@@ -71,9 +72,7 @@ bool initalized;
 
 void KeyAuth::api::init()
 {
-    #if defined(__x86_64__) || defined(_M_X64)
-        CreateThread(0, 0, (LPTHREAD_START_ROUTINE)modify, 0, 0, 0);
-    #endif
+    CreateThread(0, 0, (LPTHREAD_START_ROUTINE)modify, 0, 0, 0);
 
     if (ownerid.length() != 10 || secret.length() != 64)
     {
@@ -1454,7 +1453,11 @@ void error(std::string message) {
         return patched;
     }
 #elif defined(__i386) || defined(_M_IX86)
-
+    // code submitted in pull request from https://github.com/autumnlikescode authored by https://github.com/Vasie1337/integrity-check
+    auto check_section_integrity() {
+        _integrity_check check;
+        return check.check_integrity();
+    }
 #endif
 
 std::string checksum()
@@ -1691,5 +1694,12 @@ DWORD64 FindPattern(BYTE* bMask, const char* szMask)
         }
     }
 #elif defined(__i386) || defined(_M_IX86)
-
+// code submitted in pull request from https://github.com/autumnlikescode authored by https://github.com/Vasie1337/integrity-check
+    void modify() {
+        while (true) {
+            if (check_section_integrity()) {
+                error(XorStr("check_section_integrity() failed, don't tamper with the program."));
+            }
+        }
+    }
 #endif
