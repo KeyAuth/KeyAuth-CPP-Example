@@ -103,7 +103,7 @@ void KeyAuth::api::init()
         XorStr("&name=") + curl_easy_escape(curl, name.c_str(), 0) +
         XorStr("&ownerid=") + ownerid;
 
-    if (path != "" || path.empty()) {
+    if (path != "" || !path.empty()) {
 
         if (!std::filesystem::exists(path)) {
 			MessageBoxA(0, XorStr("File not found. Please make sure the file exists.").c_str(), NULL, MB_ICONERROR);
