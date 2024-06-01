@@ -275,7 +275,7 @@ Function only works after login.
 The reason paramater will be the ban reason displayed to the user if they try to login, and visible on the KeyAuth dashboard.
 
 ```cpp
-KeyAuthApp.ban("Don't try to crack my loader, cunt.");
+KeyAuthApp.ban("You have been banned because of reason..");
 ```
 
 ## **Server-sided webhooks**
