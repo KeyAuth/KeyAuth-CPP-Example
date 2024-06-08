@@ -16,7 +16,7 @@ std::string ownerid = skCrypt("ownerid").decrypt();
 std::string secret = skCrypt("secret").decrypt();
 std::string version = skCrypt("1.0").decrypt();
 std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
-std::string path = skCrypt("path (optional)").decrypt();
+std::string path = skCrypt("").decrypt(); //optional, set a path if you're using the token validation setting
 
 api KeyAuthApp(name, ownerid, secret, version, url, path);
 
