@@ -288,7 +288,7 @@ Tutorial video https://www.youtube.com/watch?v=ENRaNPPYJbc
 Send HTTP requests to URLs securely without leaking the URL in your application. You should definitely use if you want to send requests to SellerAPI from your application, otherwise if you don't use you'll be leaking your seller key to everyone. And then someone can mess up your application.
 
 ```cpp
-std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "&mak=best&debug=1");
+std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "?mak=best&debug=1");
 if (!KeyAuthApp.data.success) // check whether webhook request sent correctly
 {
 	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
