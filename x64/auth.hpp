@@ -40,6 +40,7 @@ namespace KeyAuth {
 		std::string fetchonline();
 		void fetchstats();
 		void forgot(std::string username, std::string email);
+		void logout();
 
 		class subscriptions_class {
 		public:
