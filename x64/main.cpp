@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include "auth.hpp"
 #include <string>
+#include <thread>
 #include "utils.hpp"
 #include "skStr.h"
 std::string tm_to_readable_time(tm ctx);
@@ -11,22 +12,23 @@ const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 using namespace KeyAuth;
 
+// copy and paste from https://keyauth.cc/app/ and replace these string variables
+// Please watch tutorial HERE 
 std::string name = skCrypt("name").decrypt();
 std::string ownerid = skCrypt("ownerid").decrypt();
 std::string secret = skCrypt("secret").decrypt();
 std::string version = skCrypt("1.0").decrypt();
-std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
+std::string url = skCrypt("https://keyauth.win/api/1.3/").decrypt(); // change if using KeyAuth custom domains feature
 std::string path = skCrypt("").decrypt(); //optional, set a path if you're using the token validation setting
 
-api KeyAuthApp(name, ownerid, secret, version, url, path);
+api KeyAuthApp(name, ownerid, version, url, path);
 
 int main()
 {
-    // Freeing memory to prevent memory leak or memory scraping
-     name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear();
     std::string consoleTitle = skCrypt("Loader - Built at:  ").decrypt() + compilation_date + " " + compilation_time;
     SetConsoleTitleA(consoleTitle.c_str());
     std::cout << skCrypt("\n\n Connecting..");
+
     KeyAuthApp.init();
     if (!KeyAuthApp.response.success)
     {
@@ -111,12 +113,14 @@ int main()
             exit(1);
         }
 
+        if (KeyAuthApp.response.message.empty()) exit(11);
         if (!KeyAuthApp.response.success)
         {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
             Sleep(1500);
             exit(1);
         }
+
         if (username.empty() || password.empty())
         {
             WriteToJson("test.json", "license", key, false, "", "");
@@ -127,10 +131,19 @@ int main()
             WriteToJson("test.json", "username", username, true, "password", password);
             std::cout << skCrypt("Successfully Created File For Auto Login");
         }
-
-
     }
 
+    /*
+    * Do NOT remove this checkAuthenticated() function.
+    * It protects you from cracking, it would be NOT be a good idea to remove it
+    */
+    std::cout << ownerid;
+    std::string owner = ownerid;
+    std::cout << "\nOwner: " + owner;
+    std::thread run(checkAuthenticated, ownerid);
+    // do NOT remove checkAuthenticated(), it MUST stay for security reasons
+
+    if (KeyAuthApp.user_data.username.empty()) exit(10);
     std::cout << skCrypt("\n User data:");
     std::cout << skCrypt("\n Username: ") << KeyAuthApp.user_data.username;
     std::cout << skCrypt("\n IP address: ") << KeyAuthApp.user_data.ip;

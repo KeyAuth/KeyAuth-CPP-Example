@@ -14,9 +14,9 @@ namespace KeyAuth {
 	class api {
 	public:
 
-		std::string name, ownerid, secret, version, url, path;
+		std::string name, ownerid, version, url, path;
 
-		api(std::string name, std::string ownerid, std::string secret, std::string version, std::string url, std::string path) : name(name), ownerid(ownerid), secret(secret), version(version), url(url), path(path) {}
+		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path) : name(name), ownerid(ownerid), version(version), url(url), path(path) {}
 
 		void ban(std::string reason = "");
 		void init();
@@ -75,7 +75,7 @@ namespace KeyAuth {
 		public:
 			// response data
 			std::vector<channel_struct> channeldata;
-			bool success{};
+			bool success{false};
 			std::string message;
 		};
 
