@@ -45,3 +45,12 @@ bool WriteToJson(std::string path, std::string name, std::string value, bool use
 
 	return true;
 }
+
+void checkAuthenticated(std::string ownerid) {
+	while (true) {
+		if (GlobalFindAtomA(ownerid.c_str()) == 0) {
+			exit(13);
+		}
+		Sleep(1000); // thread interval
+	}
+}
