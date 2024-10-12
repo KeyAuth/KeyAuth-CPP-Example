@@ -136,9 +136,6 @@ int main()
     * Do NOT remove this checkAuthenticated() function.
     * It protects you from cracking, it would be NOT be a good idea to remove it
     */
-    std::cout << ownerid;
-    std::string owner = ownerid;
-    std::cout << "\nOwner: " + owner;
     std::thread run(checkAuthenticated, ownerid);
     // do NOT remove checkAuthenticated(), it MUST stay for security reasons
 
