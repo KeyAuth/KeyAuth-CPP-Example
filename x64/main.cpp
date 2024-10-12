@@ -16,7 +16,6 @@ using namespace KeyAuth;
 // Please watch tutorial HERE 
 std::string name = skCrypt("name").decrypt();
 std::string ownerid = skCrypt("ownerid").decrypt();
-std::string secret = skCrypt("secret").decrypt();
 std::string version = skCrypt("1.0").decrypt();
 std::string url = skCrypt("https://keyauth.win/api/1.3/").decrypt(); // change if using KeyAuth custom domains feature
 std::string path = skCrypt("").decrypt(); //optional, set a path if you're using the token validation setting
