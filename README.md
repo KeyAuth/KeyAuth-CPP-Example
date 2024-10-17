@@ -290,7 +290,7 @@ KeyAuthApp.ban("You have been banned because of reason..");
 
 Tutorial video https://www.youtube.com/watch?v=ENRaNPPYJbc
 
-> **Note**
+> [!NOTE]
 > Read documentation for KeyAuth webhooks here https://keyauth.readme.io/reference/webhooks-1
 
 Send HTTP requests to URLs securely without leaking the URL in your application. You should definitely use if you want to send requests to SellerAPI from your application, otherwise if you don't use you'll be leaking your seller key to everyone. And then someone can mess up your application.
@@ -308,7 +308,7 @@ std::cout << "\n Response recieved from webhook request: " + resp;
 
 ## **Download file**
 
-> **Note**
+> [!NOTE]
 > Read documentation for KeyAuth files here https://docs.keyauth.cc/website/dashboard/files
 
 Keep files secure by providing KeyAuth your file download link on the KeyAuth dashboard. Make sure this is a direct download link (as soon as you go to the link, it starts downloading without you clicking anything). The KeyAuth download function provides the bytes, and then you get to decide what to do with those. This example shows how to write it to a file named `text.txt` in the same folder as the program, though you could execute with RunPE or whatever you want.
