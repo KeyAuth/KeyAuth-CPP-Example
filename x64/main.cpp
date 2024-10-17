@@ -9,11 +9,12 @@ static std::time_t string_to_timet(std::string timestamp);
 static std::tm timet_to_tm(time_t timestamp);
 const std::string compilation_date = (std::string)skCrypt(__DATE__);
 const std::string compilation_time = (std::string)skCrypt(__TIME__);
+void sessionStatus();
 
 using namespace KeyAuth;
 
 // copy and paste from https://keyauth.cc/app/ and replace these string variables
-// Please watch tutorial HERE 
+// Please watch tutorial HERE https://www.youtube.com/watch?v=5x4YkTmFH-U
 std::string name = skCrypt("name").decrypt();
 std::string ownerid = skCrypt("ownerid").decrypt();
 std::string version = skCrypt("1.0").decrypt();
@@ -138,6 +139,7 @@ int main()
     */
     std::thread run(checkAuthenticated, ownerid);
     // do NOT remove checkAuthenticated(), it MUST stay for security reasons
+    std::thread check(sessionStatus); // do NOT remove this function either.
 
     if (KeyAuthApp.user_data.username.empty()) exit(10);
     std::cout << skCrypt("\n User data:");
@@ -158,6 +160,23 @@ int main()
     Sleep(5000);
 
     return 0;
+}
+
+void sessionStatus() {
+    KeyAuthApp.check(true); // do NOT specify true usually, it is slower and will get you blocked from API
+    if (!KeyAuthApp.response.success) {
+        exit(0);
+    }
+
+    if (KeyAuthApp.response.isPaid) {
+        while (true) {
+            Sleep(20000); // this MUST be included or else you get blocked from API
+            KeyAuthApp.check();
+            if (!KeyAuthApp.response.success) {
+                exit(0);
+            }
+        }
+    }
 }
 
 std::string tm_to_readable_time(tm ctx) {

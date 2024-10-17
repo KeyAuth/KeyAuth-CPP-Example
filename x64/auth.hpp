@@ -20,7 +20,7 @@ namespace KeyAuth {
 
 		void ban(std::string reason = "");
 		void init();
-		void check();
+		void check(bool check_paid = false);
 		void log(std::string msg);
 		void license(std::string key);
 		std::string var(std::string varid);
@@ -75,8 +75,9 @@ namespace KeyAuth {
 		public:
 			// response data
 			std::vector<channel_struct> channeldata;
-			bool success{false};
+			bool success{};
 			std::string message;
+			bool isPaid{};
 		};
 
 		userdata user_data;
