@@ -4,6 +4,7 @@
 #include <thread>
 #include "utils.hpp"
 #include "skStr.h"
+#include <iostream>
 std::string tm_to_readable_time(tm ctx);
 static std::time_t string_to_timet(std::string timestamp);
 static std::tm timet_to_tm(time_t timestamp);
@@ -15,11 +16,12 @@ using namespace KeyAuth;
 
 // copy and paste from https://keyauth.cc/app/ and replace these string variables
 // Please watch tutorial HERE https://www.youtube.com/watch?v=5x4YkTmFH-U
-std::string name = skCrypt("name").decrypt();
-std::string ownerid = skCrypt("ownerid").decrypt();
-std::string version = skCrypt("1.0").decrypt();
+std::string name = skCrypt("name").decrypt(); // App name
+std::string ownerid = skCrypt("ownerid").decrypt(); // Account ID
+std::string version = skCrypt("1.0").decrypt(); // Application version. Used for automatic downloads see video here https://www.youtube.com/watch?v=kW195PLCBKs
 std::string url = skCrypt("https://keyauth.win/api/1.3/").decrypt(); // change if using KeyAuth custom domains feature
-std::string path = skCrypt("").decrypt(); //optional, set a path if you're using the token validation setting
+std::string path = skCrypt("").decrypt(); // (OPTIONAL) see tutorial here https://www.youtube.com/watch?v=I9rxt821gMk&t=1s
+
 
 api KeyAuthApp(name, ownerid, version, url, path);
 
@@ -72,9 +74,7 @@ int main()
         std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
         int option;
-        std::string username;
-        std::string password;
-        std::string key;
+        std::string username, password, key, TfaCode;
 
         std::cin >> option;
         switch (option)
@@ -84,7 +84,9 @@ int main()
             std::cin >> username;
             std::cout << skCrypt("\n Enter password: ");
             std::cin >> password;
-            KeyAuthApp.login(username, password);
+            std::cout << skCrypt("\n Enter 2fa code if applicable: ");
+            std::cin >> TfaCode;
+            KeyAuthApp.login(username, password, TfaCode);
             break;
         case 2:
             std::cout << skCrypt("\n\n Enter username: ");
@@ -105,7 +107,9 @@ int main()
         case 4:
             std::cout << skCrypt("\n Enter license: ");
             std::cin >> key;
-            KeyAuthApp.license(key);
+            std::cout << skCrypt("\n Enter 2fa code if applicable: ");
+            std::cin >> TfaCode;
+            KeyAuthApp.license(key, TfaCode);
             break;
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
@@ -141,6 +145,14 @@ int main()
     // do NOT remove checkAuthenticated(), it MUST stay for security reasons
     std::thread check(sessionStatus); // do NOT remove this function either.
 
+    //enable 2FA 
+    // KeyAuthApp.enable2fa(); you will need to ask for the code
+    //enable 2fa without the need of asking for the code
+    //KeyAuthApp.enable2fa().handleInput(KeyAuthApp);
+
+    //disbale 2FA
+    // KeyAuthApp.disable2fa();
+
     if (KeyAuthApp.user_data.username.empty()) exit(10);
     std::cout << skCrypt("\n User data:");
     std::cout << skCrypt("\n Username: ") << KeyAuthApp.user_data.username;
@@ -155,6 +167,10 @@ int main()
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
     }
+
+
+    std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
+
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
     Sleep(5000);
