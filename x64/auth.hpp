@@ -15,8 +15,11 @@ namespace KeyAuth {
 	public:
 
 		std::string name, ownerid, version, url, path;
-
-		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path) : name(name), ownerid(ownerid), version(version), url(url), path(path) {}
+		static bool debug;
+		
+		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debug = true) {
+			debug = debug;  
+		}
 
 		void ban(std::string reason = "");
 		void init();
