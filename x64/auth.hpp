@@ -17,7 +17,7 @@ namespace KeyAuth {
 		std::string name, ownerid, version, url, path;
 		static bool debug;
 		
-		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debug = true) {
+		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debug = false) {
 			setDebug(debugParameter);
 		}
 
