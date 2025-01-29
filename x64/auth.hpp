@@ -18,7 +18,7 @@ namespace KeyAuth {
 		static bool debug;
 		
 		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debug = true) {
-			debug = debug;  
+			setDebug(debugParameter);
 		}
 
 		void ban(std::string reason = "");
@@ -102,5 +102,6 @@ namespace KeyAuth {
 
 	private:
 		std::string sessionid, enckey;
+		static void setDebug(bool value);
 	};
 }
