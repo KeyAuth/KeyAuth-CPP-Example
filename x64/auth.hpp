@@ -17,10 +17,10 @@ namespace KeyAuth {
 		std::string name, ownerid, version, url, path;
 		static bool debug;
 		
-		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debugParameter) 
+		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debugParameter = false) 
 		: name(name), ownerid(ownerid), version(version), url(url), path(path)
 		{
-		    setDebug(debugParameter)
+		    setDebug(debugParameter);
 		}
 
 		void ban(std::string reason = "");
