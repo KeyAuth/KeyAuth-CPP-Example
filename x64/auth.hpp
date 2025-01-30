@@ -14,13 +14,15 @@ namespace KeyAuth {
 	class api {
 	public:
 
-		std::string name, ownerid, version, url, path;
+		std::string name, ownerid, version, url, path; 
 		static bool debug;
 		
-		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debugParameter = false) {
+		api(std::string name, std::string ownerid, std::string version, std::string url, std::string path, bool debugParameter = false) 
+		: name(name), ownerid(ownerid), version(version), url(url), path(path)
+		{
 			setDebug(debugParameter);
 		}
-
+		
 		void ban(std::string reason = "");
 		void init();
 		void check(bool check_paid = false);
@@ -44,26 +46,26 @@ namespace KeyAuth {
 		void fetchstats();
 		void forgot(std::string username, std::string email);
 		void logout();
-
+		
 		class subscriptions_class {
 		public:
 			std::string name;
 			std::string expiry;
 		};
-
+		
 		class userdata {
 		public:
-
+		
 			// user data
 			std::string username;
 			std::string ip;
 			std::string hwid;
 			std::string createdate;
 			std::string lastlogin;
-
+		
 			std::vector<subscriptions_class> subscriptions;
 		};
-
+		
 		class appdata {
 		public:
 			// app data
@@ -72,8 +74,9 @@ namespace KeyAuth {
 			std::string numKeys;
 			std::string version;
 			std::string customerPanelLink;
+			std::string downloadLink;
 		};
-
+		
 		class responsedata {
 		public:
 			// response data
@@ -82,7 +85,7 @@ namespace KeyAuth {
 			std::string message;
 			bool isPaid{};
 		};
-
+		
 		bool activate = false;
 		class Tfa {
 		public:
@@ -92,13 +95,14 @@ namespace KeyAuth {
 		private:
 			void QrCode();
 		};
-
+		
 		Tfa& enable2fa(std::string code = "");
 		Tfa& disable2fa(std::string code = "");
-
+		
 		userdata user_data;
 		appdata app_data;
 		responsedata response;
+		Tfa tfa;
 
 	private:
 		std::string sessionid, enckey;
