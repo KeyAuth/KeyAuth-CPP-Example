@@ -85,7 +85,11 @@ int main()
             std::cout << skCrypt("\n Enter password: ");
             std::cin >> password;
             std::cout << skCrypt("\n Enter 2fa code if applicable: ");
-            std::cin >> TfaCode;
+            std::cin.ignore();  // Ignore the newline character left by the previous input
+            std::getline(std::cin, TfaCode);  // Allow empty input for 2FA code
+            if (TfaCode.empty()) {
+				std::cout << skCrypt("\n No 2fa code entered, continuing without it\n");
+			}
             KeyAuthApp.login(username, password, TfaCode);
             break;
         case 2:
