@@ -75,9 +75,9 @@ You must call this function prior to using any other KeyAuth function. Otherwise
 
 ```cpp
 KeyAuthApp.init();
-if (!KeyAuthApp.data.success)
+if (!KeyAuthApp.response.success)
 {
-	std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+	std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
 	Sleep(1500);
 	exit(0);
 }
@@ -87,11 +87,11 @@ if (!KeyAuthApp.data.success)
 
 ```cpp
 KeyAuthApp.fetchstats();
-std::cout << skCrypt("\n\n Number of users: ") << KeyAuthApp.data.numUsers;
-std::cout << skCrypt("\n Number of online users: ") << KeyAuthApp.data.numOnlineUsers;
-std::cout << skCrypt("\n Number of keys: ") << KeyAuthApp.data.numKeys;
-std::cout << skCrypt("\n Application Version: ") << KeyAuthApp.data.version;
-std::cout << skCrypt("\n Customer panel link: ") << KeyAuthApp.data.customerPanelLink;
+std::cout << skCrypt("\n\n Number of users: ") << KeyAuthApp.app_data.numUsers;
+std::cout << skCrypt("\n Number of online users: ") << KeyAuthApp.app_data.numOnlineUsers;
+std::cout << skCrypt("\n Number of keys: ") << KeyAuthApp.app_data.numKeys;
+std::cout << skCrypt("\n Application Version: ") << KeyAuthApp.app_data.version;
+std::cout << skCrypt("\n Customer panel link: ") << KeyAuthApp.app_data.customerPanelLink;
 ```
 
 ## **Check session validation**
@@ -101,7 +101,7 @@ Use this to see if the user is logged in or not.
 ```cpp
 std::cout << skCrypt("\n Checking session validation status (remove this if causing your loader to be slow)");
 KeyAuthApp.check();
-std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.data.message;
+std::cout << skCrypt("\n Current Session Validation Status: ") << KeyAuthApp.response.message;
 ```
 
 ## **Check blacklist status**
@@ -124,9 +124,9 @@ std::cin >> username;
 std::cout << skCrypt("\n Enter password: ");
 std::cin >> password;
 KeyAuthApp.login(username, password);
-if (!KeyAuthApp.data.success)
+if (!KeyAuthApp.response.success)
 {
-	std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+	std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
 	Sleep(1500);
 	exit(0);
 }
@@ -145,9 +145,9 @@ std::cin >> password;
 std::cout << skCrypt("\n Enter license: ");
 std::cin >> key;
 KeyAuthApp.regstr(username, password, key);
-if (!KeyAuthApp.data.success)
+if (!KeyAuthApp.response.success)
 {
-	std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+	std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
 	Sleep(1500);
 	exit(0);
 }
@@ -180,9 +180,9 @@ std::string key;
 std::cout << skCrypt("\n Enter license: ");
 std::cin >> key;
 KeyAuthApp.license(key);
-if (!KeyAuthApp.data.success)
+if (!KeyAuthApp.response.success)
 {
-	std::cout << skCrypt("\n Status: ") << KeyAuthApp.data.message;
+	std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
 	Sleep(1500);
 	exit(0);
 }
@@ -205,16 +205,16 @@ Show information for current logged-in user.
 
 ```cpp
 std::cout << skCrypt("\n User data:");
-std::cout << skCrypt("\n Username: ") << KeyAuthApp.data.username;
-std::cout << skCrypt("\n IP address: ") << KeyAuthApp.data.ip;
-std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.data.hwid;
-std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.createdate)));
-std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.lastlogin)));
+std::cout << skCrypt("\n Username: ") << KeyAuthApp.response.username;
+std::cout << skCrypt("\n IP address: ") << KeyAuthApp.user_data.ip;
+std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.user_data.hwid;
+std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.createdate)));
+std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.lastlogin)));
 std::cout << skCrypt("\n Subscription name(s): ");
 std::string subs;
-for (std::string value : KeyAuthApp.data.subscriptions)subs += value + " ";
+for (std::string value : KeyAuthApp.user_data.subscriptions)subs += value + " ";
 std::cout << subs;
-std::cout << skCrypt("\n Subscription expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.expiry)));
+std::cout << skCrypt("\n Subscription expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.expiry)));
 ```
 
 ## **Check subscription name of user**
@@ -222,7 +222,7 @@ std::cout << skCrypt("\n Subscription expiry: ") << tm_to_readable_time(timet_to
 If you want to wall off parts of your app to only certain users, you can have multiple subscriptions with different names. Then, when you create licenses that correspond to the level of that subscription, users who use those licenses will get a subscription with the name of the subscription that corresponds to the level of the license key they used.
 
 ```cpp
-for (std::string subs : KeyAuthApp.data.subscriptions)
+for (std::string subs : KeyAuthApp.user_data.subscriptions)
 {
 	if (subs == "default")
 	{
@@ -297,9 +297,9 @@ Send HTTP requests to URLs securely without leaking the URL in your application.
 
 ```cpp
 std::string resp = KeyAuthApp.webhook("Sh1j25S5iX", "&mak=best&debug=1");
-if (!KeyAuthApp.data.success) // check whether webhook request sent correctly
+if (!KeyAuthApp.response.success) // check whether webhook request sent correctly
 {
-	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
+	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
 	Sleep(1500);
 	exit(0);
 }
@@ -318,9 +318,9 @@ Keep files secure by providing KeyAuth your file download link on the KeyAuth da
 ```cpp
 // remember, certain paths like windows folder will require you to turn on auto run as admin https://stackoverflow.com/a/19617989
 std::vector<std::uint8_t> bytes = KeyAuthApp.download("362906");
-if (!KeyAuthApp.data.success) // check whether file downloaded correctly
+if (!KeyAuthApp.response.success) // check whether file downloaded correctly
 {
-	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.data.message;
+	std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
 	Sleep(1500);
 	exit(0);
 }
@@ -335,9 +335,9 @@ Allow users to communicate amongst themselves in your program.
 
 ```cpp
 KeyAuthApp.chatget("test");
-for (int i = 0; i < KeyAuthApp.data.channeldata.size(); i++)
+for (int i = 0; i < KeyAuthApp.response.channeldata.size(); i++)
 {
-	std::cout << "\n Author:" + KeyAuthApp.data.channeldata[i].author + " | Message:" + KeyAuthApp.data.channeldata[i].message + " | Send Time:" + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.data.channeldata[i].timestamp)));
+	std::cout << "\n Author:" + KeyAuthApp.user_data.channeldata[i].author + " | Message:" + KeyAuthApp.user_data.channeldata[i].message + " | Send Time:" + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.channeldata[i].timestamp)));
 }
 ```
 
@@ -347,7 +347,7 @@ std::string message;
 std::getline(std::cin, message);
 if (!KeyAuthApp.chatsend("test", message))
 {
-	std::cout << KeyAuthApp.data.message << std::endl;
+	std::cout << KeyAuthApp.response.message << std::endl;
 }
 ```
 
@@ -362,8 +362,8 @@ std::cout << skCrypt("\n Change Username To: ");
 std::string newusername;
 std::cin >> newusername;
 KeyAuthApp.changeusername(newusername);
-if (KeyAuthApp.data.success) 
+if (KeyAuthApp.response.success) 
 {
-        std::cout << KeyAuthApp.data.message << std::endl;
+        std::cout << KeyAuthApp.response.message << std::endl;
 }
 ```
