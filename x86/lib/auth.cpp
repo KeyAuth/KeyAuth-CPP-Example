@@ -1488,11 +1488,14 @@ bool constantTimeStringCompare(const char* str1, const char* str2, size_t length
     int result = 0;
 
     for (size_t i = 0; i < length; ++i) {
-        result |= str1[i] ^ str2[i];
+        char c1 = std::tolower(static_cast<unsigned char>(str1[i]));
+        char c2 = std::tolower(static_cast<unsigned char>(str2[i]));
+        result |= c1 ^ c2;
     }
 
     return result == 0;
 }
+
 
 std::string getPath() {
     const char* programDataPath = std::getenv("ALLUSERSPROFILE");
