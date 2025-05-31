@@ -87,12 +87,24 @@ int main()
         exit(1);
     }
 
-    KeyAuthApp.chatget("testing");
+    std::cout << skCrypt("\n User data:");
+    std::cout << skCrypt("\n Username: ") << KeyAuthApp.user_data.username;
+    std::cout << skCrypt("\n IP address: ") << KeyAuthApp.user_data.ip;
+    std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.user_data.hwid;
+    std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.createdate)));
+    std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.lastlogin)));
+    std::cout << skCrypt("\n Subscription(s): ");
 
-    for (int i = 0; i < KeyAuthApp.response.channeldata.size(); i++)
-    {
-        std::cout << "\n Author:" + KeyAuthApp.response.channeldata[i].author + " | Message:" + KeyAuthApp.response.channeldata[i].message + " | Send Time:" + tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.response.channeldata[i].timestamp)));
+    for (int i = 0; i < KeyAuthApp.user_data.subscriptions.size(); i++) {
+        auto sub = KeyAuthApp.user_data.subscriptions.at(i);
+        std::cout << skCrypt("\n name: ") << sub.name;
+        std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
     }
+
+    std::cout << skCrypt("\n\n Closing in five seconds...");
+    Sleep(5000);
+
+    return 0;
 }
 
 std::string tm_to_readable_time(tm ctx) {

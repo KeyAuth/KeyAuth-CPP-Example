@@ -162,8 +162,8 @@ void KeyAuth::api::init()
     for (uint8_t x : out) {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -242,8 +242,8 @@ void KeyAuth::api::login(std::string username, std::string password)
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -315,8 +315,8 @@ void KeyAuth::api::changeUsername(std::string newusername)
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -565,8 +565,8 @@ void KeyAuth::api::web_login()
             ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
         }
 
-        if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-            error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+        if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+            error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
         }
 
         // Respond to the request.
@@ -780,8 +780,8 @@ void KeyAuth::api::regstr(std::string username, std::string password, std::strin
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -818,8 +818,8 @@ void KeyAuth::api::upgrade(std::string username, std::string key) {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     json[(XorStr("success"))] = false;
@@ -856,8 +856,8 @@ void KeyAuth::api::license(std::string key) {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -908,8 +908,8 @@ std::string KeyAuth::api::getvar(std::string var) {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -944,8 +944,8 @@ void KeyAuth::api::ban(std::string reason) {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -980,8 +980,8 @@ bool KeyAuth::api::checkblack() {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
     return json[("success")];
 }
@@ -1014,8 +1014,8 @@ void KeyAuth::api::check() {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -1049,8 +1049,8 @@ std::string KeyAuth::api::var(std::string varid) {
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -1139,8 +1139,8 @@ std::string KeyAuth::api::webhook(std::string id, std::string params, std::strin
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
@@ -1172,8 +1172,8 @@ std::string KeyAuth::api::fetchonline()
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     std::string onlineusers;
@@ -1213,8 +1213,8 @@ void KeyAuth::api::fetchstats()
         ss_result << std::hex << std::setfill('0') << std::setw(2) << (int)x;
     }
 
-    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), sizeof(signature).c_str())) { // check response authenticity, if not authentic program crashes
-        error("Signature checksum failed. Request was tampered with or session ended most likely. & echo: & echo Message: " + message);
+    if (!constantTimeStringCompare(ss_result.str().c_str(), signature.c_str(), signature.length())) {
+        error("Signature checksum failed … Request was tampered with or session ended most likely." + message);
     }
 
     load_response_data(json);
