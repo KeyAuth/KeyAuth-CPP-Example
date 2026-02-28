@@ -14,14 +14,18 @@ using namespace KeyAuth;
 
 namespace {
 constexpr const char* kSavePath = "test.json";
+constexpr const char* kTimeGuardPath = "time_guard.json"; // local time tamper guard. -nigel
 constexpr int kInitFailSleepMs = 1500;
 constexpr int kBadInputSleepMs = 3000;
 constexpr int kCloseSleepMs = 5000;
+constexpr long kMaxBackwardSkewSec = 300; // 5 minutes backward tolerance. -nigel
+constexpr long kMaxForwardSkewSec = 86400; // 24 hours forward tolerance. -nigel
 
 std::string tm_to_readable_time(std::tm ctx);
 std::time_t string_to_timet(const std::string& timestamp);
 std::tm timet_to_tm(time_t timestamp);
 std::string remaining_until(const std::string& timestamp);
+bool time_tamper_detected();
 
 bool read_int(int& out) {
     std::cin >> out;
@@ -65,6 +69,23 @@ bool try_auto_login(api& app, std::string& username, std::string& password, std:
         return true;
     }
 
+    return false;
+}
+
+bool time_tamper_detected() {
+    const auto now = std::time(nullptr);
+    const auto last_str = ReadFromJson(kTimeGuardPath, "last");
+    if (!last_str.empty()) {
+        const auto last = string_to_timet(last_str);
+        if (last > 0) {
+            if (now + kMaxBackwardSkewSec < last)
+                return true; // clock moved backward beyond tolerance. -nigel
+            if (now > last + kMaxForwardSkewSec)
+                return true; // clock jumped forward beyond tolerance. -nigel
+        }
+    }
+
+    WriteToJson(kTimeGuardPath, "last", std::to_string(now), false, "", "");
     return false;
 }
 
@@ -130,6 +151,12 @@ int main()
 
     const std::string ownerid_copy = ownerid; // preserve for auth check thread. -nigel
     name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear();
+
+    if (time_tamper_detected()) {
+        std::cout << skCrypt("\n Status: Failure: System time appears incorrect.");
+        Sleep(kBadInputSleepMs);
+        exit(1);
+    }
 
     std::string username;
     std::string password;

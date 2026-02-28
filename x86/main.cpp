@@ -14,11 +14,15 @@ namespace {
 constexpr int kInitFailSleepMs = 1500;
 constexpr int kBadInputSleepMs = 3000;
 constexpr int kCloseSleepMs = 5000;
+constexpr const char* kTimeGuardPath = "time_guard.json"; // local time tamper guard. -nigel
+constexpr long kMaxBackwardSkewSec = 300; // 5 minutes backward tolerance. -nigel
+constexpr long kMaxForwardSkewSec = 86400; // 24 hours forward tolerance. -nigel
 
 std::string tm_to_readable_time(std::tm ctx);
 std::time_t string_to_timet(const std::string& timestamp);
 std::tm timet_to_tm(time_t timestamp);
 std::string remaining_until(const std::string& timestamp);
+bool time_tamper_detected();
 
 bool read_int(int& out) {
     std::cin >> out;
@@ -45,6 +49,23 @@ void print_user_data(const api& app) {
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
         std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")");
     }
+}
+
+bool time_tamper_detected() {
+    const auto now = std::time(nullptr);
+    const auto last_str = ReadFromJson(kTimeGuardPath, "last");
+    if (!last_str.empty()) {
+        const auto last = string_to_timet(last_str);
+        if (last > 0) {
+            if (now + kMaxBackwardSkewSec < last)
+                return true; // clock moved backward beyond tolerance. -nigel
+            if (now > last + kMaxForwardSkewSec)
+                return true; // clock jumped forward beyond tolerance. -nigel
+        }
+    }
+
+    WriteToJson(kTimeGuardPath, "last", std::to_string(now), false, "", "");
+    return false;
 }
 } // namespace
 
@@ -75,6 +96,12 @@ int main()
     }
 
     name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear(); // reduce exposure in memory. -nigel
+
+    if (time_tamper_detected()) {
+        std::cout << skCrypt("\n Status: Failure: System time appears incorrect.");
+        Sleep(kBadInputSleepMs);
+        exit(1);
+    }
 
     std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
