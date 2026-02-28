@@ -95,7 +95,7 @@ void print_user_data(const api& app) {
     std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(app.user_data.lastlogin)));
     std::cout << skCrypt("\n Subscription(s): ");
 
-    for (int i = 0; i < app.user_data.subscriptions.size(); i++) {
+    for (size_t i = 0; i < app.user_data.subscriptions.size(); i++) {
         const auto& sub = app.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
