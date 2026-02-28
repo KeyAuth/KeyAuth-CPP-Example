@@ -3,9 +3,12 @@
 #include <auth.hpp>
 #include "utils.hpp"
 #include "skStr.h"
+#include <limits> // input validation helpers. -nigel
+#include <chrono> // date math for expiry display. -nigel
 std::string tm_to_readable_time(tm ctx);
 static std::time_t string_to_timet(std::string timestamp);
 static std::tm timet_to_tm(time_t timestamp);
+static std::string remaining_until(std::string timestamp); // human readable expiry countdown. -nigel
 const std::string compilation_date = (std::string)skCrypt(__DATE__);
 const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
@@ -44,6 +47,14 @@ int main()
     std::string key;
 
     std::cin >> option;
+    if (std::cin.fail())
+    {
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::cout << skCrypt("\n\n Status: Failure: Invalid Selection"); // bad input path. -nigel
+        Sleep(3000);
+        exit(1);
+    }
     switch (option)
     {
     case 1:
@@ -99,6 +110,7 @@ int main()
         auto sub = KeyAuthApp.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
+        std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")"); // show time remaining. -nigel
     }
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
@@ -116,9 +128,11 @@ std::string tm_to_readable_time(tm ctx) {
 }
 
 static std::time_t string_to_timet(std::string timestamp) {
-    auto cv = strtol(timestamp.c_str(), NULL, 10); // long
-
-    return (time_t)cv;
+    char* end = nullptr;
+    auto cv = strtol(timestamp.c_str(), &end, 10);
+    if (end == timestamp.c_str())
+        return 0; // invalid timestamp returns epoch. -nigel
+    return static_cast<time_t>(cv);
 }
 
 static std::tm timet_to_tm(time_t timestamp) {
@@ -127,4 +141,22 @@ static std::tm timet_to_tm(time_t timestamp) {
     localtime_s(&context, &timestamp);
 
     return context;
+}
+
+static std::string remaining_until(std::string timestamp) {
+    const auto expiry = string_to_timet(timestamp);
+    const auto now = std::time(nullptr);
+    if (expiry <= now)
+        return "expired"; // already expired. -nigel
+    auto diff = std::chrono::seconds(expiry - now);
+    auto days = std::chrono::duration_cast<std::chrono::hours>(diff).count() / 24;
+    auto weeks = days / 7;
+    auto months = days / 30;
+    auto years = days / 365;
+    std::string out;
+    if (years > 0) out += std::to_string(years) + "y ";
+    if (months > 0) out += std::to_string(months % 12) + "mo ";
+    if (weeks > 0) out += std::to_string(weeks % 4) + "w ";
+    out += std::to_string(days % 7) + "d";
+    return out;
 }

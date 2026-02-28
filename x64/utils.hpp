@@ -9,18 +9,26 @@ using json = nlohmann::json;
 std::string ReadFromJson(std::string path, std::string section) 
 {
 	if (!std::filesystem::exists(path))
-		return skCrypt("File Not Found").decrypt();
+		return ""; // missing file returns empty. -nigel
 	std::ifstream file(path);
-	json data = json::parse(file);
+	if (!file.good())
+		return ""; // failed open returns empty. -nigel
+	json data = json::parse(file, nullptr, false);
+	if (data.is_discarded() || !data.contains(section))
+		return ""; // invalid or missing key returns empty. -nigel
 	return data[section];
 }
 
 bool CheckIfJsonKeyExists(std::string path, std::string section) 
 {
 	if (!std::filesystem::exists(path))
-		return skCrypt("File Not Found").decrypt();
+		return false; // missing file means no key. -nigel
 	std::ifstream file(path);
-	json data = json::parse(file);
+	if (!file.good())
+		return false; // failed open means no key. -nigel
+	json data = json::parse(file, nullptr, false);
+	if (data.is_discarded())
+		return false; // invalid json means no key. -nigel
 	return data.contains(section);
 }
 
@@ -37,10 +45,12 @@ bool WriteToJson(std::string path, std::string name, std::string value, bool use
 		file[name2] = value2;
 	}
 
-	std::ofstream jsonfile(path, std::ios::out);
+	std::ofstream jsonfile(path, std::ios::out | std::ios::trunc);
+	if (!jsonfile.good())
+		return false; // failed open means no write. -nigel
 	jsonfile << file;
-	jsonfile.close();
-	if (!std::filesystem::exists(path))
+	jsonfile.flush();
+	if (!jsonfile.good() || !std::filesystem::exists(path))
 		return false;
 
 	return true;

@@ -5,9 +5,13 @@
 #include "utils.hpp"
 #include "skStr.h"
 #include <iostream>
+#include <filesystem> // file checks for saved creds. -nigel
+#include <limits> // input validation helpers. -nigel
+#include <chrono> // date math for expiry display. -nigel
 std::string tm_to_readable_time(tm ctx);
 static std::time_t string_to_timet(std::string timestamp);
 static std::tm timet_to_tm(time_t timestamp);
+static std::string remaining_until(std::string timestamp); // human readable expiry countdown. -nigel
 const std::string compilation_date = (std::string)skCrypt(__DATE__);
 const std::string compilation_time = (std::string)skCrypt(__TIME__);
 void sessionStatus();
@@ -27,6 +31,7 @@ api KeyAuthApp(name, ownerid, version, url, path);
 
 int main()
 {
+    // clear plaintext config copies after api init below. -nigel
     std::string consoleTitle = skCrypt("Loader - Built at:  ").decrypt() + compilation_date + " " + compilation_time;
     SetConsoleTitleA(consoleTitle.c_str());
     std::cout << skCrypt("\n\n Connecting..");
@@ -38,31 +43,50 @@ int main()
         Sleep(1500);
         exit(1);
     }
+    name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear(); // reduce exposure of config strings. -nigel
 
     std::string username, password, key, TfaCode; // keep this before the auto-login with saved file.
     // because if you don't and the user has 2FA on, then they won't be asked for 2FA code and can't login.
 
-    if (std::filesystem::exists("test.json")) //change test.txt to the path of your file :smile:
+    const std::string save_path = "test.json"; // keep consistent with existing example file. -nigel
+    bool used_saved_creds = false; // track whether we auto-logged in. -nigel
+    if (std::filesystem::exists(save_path))
     {
-        if (!CheckIfJsonKeyExists("test.json", "username"))
+        // only trust saved data if it parses cleanly and is non-empty. -nigel
+        const auto saved_license = ReadFromJson(save_path, "license");
+        const auto saved_username = ReadFromJson(save_path, "username");
+        const auto saved_password = ReadFromJson(save_path, "password");
+
+        if (!saved_license.empty())
         {
-            key = ReadFromJson("test.json", "license");
+            key = saved_license;
             KeyAuthApp.license(key);
+            used_saved_creds = true;
         }
-        else
+        else if (!saved_username.empty() && !saved_password.empty())
         {
-            username = ReadFromJson("test.json", "username");
-            password = ReadFromJson("test.json", "password");
+            username = saved_username;
+            password = saved_password;
             KeyAuthApp.login(username, password);
+            used_saved_creds = true;
         }
     }
-    else
+
+    if (!used_saved_creds)
     {
         std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
         int option;
 
         std::cin >> option;
+        if (std::cin.fail())
+        {
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << skCrypt("\n\n Status: Failure: Invalid Selection"); // bad input path. -nigel
+            Sleep(3000);
+            exit(1);
+        }
         switch (option)
         {
         case 1:
@@ -131,15 +155,33 @@ int main()
         }
     }
 
-    if (username.empty() || password.empty())
+    bool save_creds = false; // opt-in to disk storage to reduce exposure. -nigel
+    std::cout << skCrypt("\n\n Save credentials to disk for auto-login? [y/N]: ");
+    char save_choice = 'n';
+    std::cin >> save_choice;
+    if (std::cin.fail())
     {
-        WriteToJson("test.json", "license", key, false, "", "");
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        save_choice = 'n'; // default to no on bad input. -nigel
+    }
+    save_creds = (save_choice == 'y' || save_choice == 'Y');
+
+    if (save_creds)
+    {
+        if (username.empty() || password.empty())
+        {
+            WriteToJson(save_path, "license", key, false, "", "");
+        }
+        else
+        {
+            WriteToJson(save_path, "username", username, true, "password", password);
+        }
         std::cout << skCrypt("Successfully Created File For Auto Login");
     }
     else
     {
-        WriteToJson("test.json", "username", username, true, "password", password);
-        std::cout << skCrypt("Successfully Created File For Auto Login");
+        std::remove(save_path.c_str()); // remove stale creds if user opts out. -nigel
     }
 
     /*
@@ -171,6 +213,7 @@ int main()
         auto sub = KeyAuthApp.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
+        std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")"); // show time remaining. -nigel
     }
 
 
@@ -209,9 +252,11 @@ std::string tm_to_readable_time(tm ctx) {
 }
 
 static std::time_t string_to_timet(std::string timestamp) {
-    auto cv = strtol(timestamp.c_str(), NULL, 10); // long
-
-    return (time_t)cv;
+    char* end = nullptr;
+    auto cv = strtol(timestamp.c_str(), &end, 10);
+    if (end == timestamp.c_str())
+        return 0; // invalid timestamp returns epoch. -nigel
+    return static_cast<time_t>(cv);
 }
 
 static std::tm timet_to_tm(time_t timestamp) {
@@ -220,4 +265,22 @@ static std::tm timet_to_tm(time_t timestamp) {
     localtime_s(&context, &timestamp);
 
     return context;
+}
+
+static std::string remaining_until(std::string timestamp) {
+    const auto expiry = string_to_timet(timestamp);
+    const auto now = std::time(nullptr);
+    if (expiry <= now)
+        return "expired"; // already expired. -nigel
+    auto diff = std::chrono::seconds(expiry - now);
+    auto days = std::chrono::duration_cast<std::chrono::hours>(diff).count() / 24;
+    auto weeks = days / 7;
+    auto months = days / 30;
+    auto years = days / 365;
+    std::string out;
+    if (years > 0) out += std::to_string(years) + "y ";
+    if (months > 0) out += std::to_string(months % 12) + "mo ";
+    if (weeks > 0) out += std::to_string(weeks % 4) + "w ";
+    out += std::to_string(days % 7) + "d";
+    return out;
 }

@@ -12,9 +12,11 @@ std::string utils::get_hwid() {
 }
 
 std::time_t utils::string_to_timet(std::string timestamp) {
-	auto cv = strtol(timestamp.c_str(), NULL, 10);
-
-	return (time_t)cv;
+	char* end = nullptr;
+	auto cv = strtol(timestamp.c_str(), &end, 10);
+	if (end == timestamp.c_str())
+		return 0; // invalid timestamp returns epoch. -nigel
+	return static_cast<time_t>(cv);
 }
 
 std::tm utils::timet_to_tm(time_t timestamp) {
