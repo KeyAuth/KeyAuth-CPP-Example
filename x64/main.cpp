@@ -72,23 +72,6 @@ bool try_auto_login(api& app, std::string& username, std::string& password, std:
     return false;
 }
 
-bool time_tamper_detected() {
-    const auto now = std::time(nullptr);
-    const auto last_str = ReadFromJson(kTimeGuardPath, "last");
-    if (!last_str.empty()) {
-        const auto last = string_to_timet(last_str);
-        if (last > 0) {
-            if (now + kMaxBackwardSkewSec < last)
-                return true; // clock moved backward beyond tolerance. -nigel
-            if (now > last + kMaxForwardSkewSec)
-                return true; // clock jumped forward beyond tolerance. -nigel
-        }
-    }
-
-    WriteToJson(kTimeGuardPath, "last", std::to_string(now), false, "", "");
-    return false;
-}
-
 void save_or_clear_creds(bool save, const std::string& username, const std::string& password, const std::string& key) {
     if (!save) {
         std::remove(kSavePath); // remove stale creds when opting out. -nigel
@@ -118,6 +101,23 @@ void print_user_data(const api& app) {
         std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
         std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")");
     }
+}
+
+bool time_tamper_detected() {
+    const auto now = std::time(nullptr);
+    const auto last_str = ReadFromJson(kTimeGuardPath, "last");
+    if (!last_str.empty()) {
+        const auto last = string_to_timet(last_str);
+        if (last > 0) {
+            if (now + kMaxBackwardSkewSec < last)
+                return true; // clock moved backward beyond tolerance. -nigel
+            if (now > last + kMaxForwardSkewSec)
+                return true; // clock jumped forward beyond tolerance. -nigel
+        }
+    }
+
+    WriteToJson(kTimeGuardPath, "last", std::to_string(now), false, "", "");
+    return false;
 }
 } // namespace
 

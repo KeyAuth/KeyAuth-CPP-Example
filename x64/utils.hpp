@@ -1,12 +1,13 @@
 #pragma once
-#include <filesystem> 
-#include <string> 
-#include <fstream>
-#include "skStr.h"
 #include "json.hpp"
+#include "skStr.h"
+#include <filesystem>
+#include <fstream>
+#include <string>
+
 using json = nlohmann::json; // header-only helpers below. -nigel
 
-inline std::string ReadFromJson(std::string path, std::string section) 
+inline std::string ReadFromJson(std::string path, std::string section)
 {
 	if (!std::filesystem::exists(path))
 		return ""; // missing file returns empty. -nigel
@@ -19,7 +20,7 @@ inline std::string ReadFromJson(std::string path, std::string section)
 	return data[section];
 }
 
-inline bool CheckIfJsonKeyExists(std::string path, std::string section) 
+inline bool CheckIfJsonKeyExists(std::string path, std::string section)
 {
 	if (!std::filesystem::exists(path))
 		return false; // missing file means no key. -nigel
@@ -32,10 +33,10 @@ inline bool CheckIfJsonKeyExists(std::string path, std::string section)
 	return data.contains(section);
 }
 
-inline bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2) 
+inline bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2)
 {
 	json file;
-	if (!userpass) 
+	if (!userpass)
 	{
 		file[name] = value;
 	}
