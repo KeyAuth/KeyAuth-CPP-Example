@@ -1,60 +1,95 @@
 #include <Windows.h>
-#include <string>
-#include <auth.hpp>
-#include "utils.hpp"
+#include "auth.hpp"
 #include "skStr.h"
-#include <limits> // input validation helpers. -nigel
-#include <chrono> // date math for expiry display. -nigel
-std::string tm_to_readable_time(tm ctx);
-static std::time_t string_to_timet(std::string timestamp);
-static std::tm timet_to_tm(time_t timestamp);
-static std::string remaining_until(std::string timestamp); // human readable expiry countdown. -nigel
-const std::string compilation_date = (std::string)skCrypt(__DATE__);
-const std::string compilation_time = (std::string)skCrypt(__TIME__);
+#include "utils.hpp"
+#include <chrono>
+#include <ctime>
+#include <iostream>
+#include <limits>
+#include <string>
 
 using namespace KeyAuth;
+
+namespace {
+constexpr int kInitFailSleepMs = 1500;
+constexpr int kBadInputSleepMs = 3000;
+constexpr int kCloseSleepMs = 5000;
+
+std::string tm_to_readable_time(std::tm ctx);
+std::time_t string_to_timet(const std::string& timestamp);
+std::tm timet_to_tm(time_t timestamp);
+std::string remaining_until(const std::string& timestamp);
+
+bool read_int(int& out) {
+    std::cin >> out;
+    if (std::cin.fail()) {
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        return false; // bad input read. -nigel
+    }
+    return true;
+}
+
+void print_user_data(const api& app) {
+    std::cout << skCrypt("\n User data:");
+    std::cout << skCrypt("\n Username: ") << app.user_data.username;
+    std::cout << skCrypt("\n IP address: ") << app.user_data.ip;
+    std::cout << skCrypt("\n Hardware-Id: ") << app.user_data.hwid;
+    std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(app.user_data.createdate)));
+    std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(app.user_data.lastlogin)));
+    std::cout << skCrypt("\n Subscription(s): ");
+
+    for (int i = 0; i < app.user_data.subscriptions.size(); i++) {
+        const auto& sub = app.user_data.subscriptions.at(i);
+        std::cout << skCrypt("\n name: ") << sub.name;
+        std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
+        std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")");
+    }
+}
+} // namespace
+
+const std::string compilation_date = (std::string)skCrypt(__DATE__);
+const std::string compilation_time = (std::string)skCrypt(__TIME__);
 
 std::string name = skCrypt("name").decrypt();
 std::string ownerid = skCrypt("ownerid").decrypt();
 std::string secret = skCrypt("secret").decrypt();
 std::string version = skCrypt("1.0").decrypt();
 std::string url = skCrypt("https://keyauth.win/api/1.2/").decrypt(); // change if you're self-hosting
-std::string path = skCrypt("").decrypt(); //optional, set a path if you're using the token validation setting
+std::string path = skCrypt("").decrypt(); // optional, set a path if you're using the token validation setting
 
 api KeyAuthApp(name, ownerid, secret, version, url, path);
 
 int main()
 {
-    // Freeing memory to prevent memory leak or memory scraping
-    name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear();
-    
     std::string consoleTitle = skCrypt("Loader - Built at:  ").decrypt() + compilation_date + " " + compilation_time;
     SetConsoleTitleA(consoleTitle.c_str());
     std::cout << skCrypt("\n\n Connecting..");
+
     KeyAuthApp.init();
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(1500);
+        Sleep(kInitFailSleepMs);
         exit(1);
     }
 
+    name.clear(); ownerid.clear(); secret.clear(); version.clear(); url.clear(); // reduce exposure in memory. -nigel
+
     std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
-    int option;
+    int option = 0;
     std::string username;
     std::string password;
     std::string key;
 
-    std::cin >> option;
-    if (std::cin.fail())
+    if (!read_int(option))
     {
-        std::cin.clear();
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cout << skCrypt("\n\n Status: Failure: Invalid Selection"); // bad input path. -nigel
-        Sleep(3000);
+        std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
+        Sleep(kBadInputSleepMs);
         exit(1);
     }
+
     switch (option)
     {
     case 1:
@@ -87,47 +122,32 @@ int main()
         break;
     default:
         std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-        Sleep(3000);
+        Sleep(kBadInputSleepMs);
         exit(1);
     }
 
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(1500);
+        Sleep(kInitFailSleepMs);
         exit(1);
     }
 
-    std::cout << skCrypt("\n User data:");
-    std::cout << skCrypt("\n Username: ") << KeyAuthApp.user_data.username;
-    std::cout << skCrypt("\n IP address: ") << KeyAuthApp.user_data.ip;
-    std::cout << skCrypt("\n Hardware-Id: ") << KeyAuthApp.user_data.hwid;
-    std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.createdate)));
-    std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(KeyAuthApp.user_data.lastlogin)));
-    std::cout << skCrypt("\n Subscription(s): ");
-
-    for (int i = 0; i < KeyAuthApp.user_data.subscriptions.size(); i++) {
-        auto sub = KeyAuthApp.user_data.subscriptions.at(i);
-        std::cout << skCrypt("\n name: ") << sub.name;
-        std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
-        std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")"); // show time remaining. -nigel
-    }
+    print_user_data(KeyAuthApp);
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
-    Sleep(5000);
+    Sleep(kCloseSleepMs);
 
     return 0;
 }
 
-std::string tm_to_readable_time(tm ctx) {
+std::string tm_to_readable_time(std::tm ctx) {
     char buffer[80];
-
     strftime(buffer, sizeof(buffer), "%a %m/%d/%y %H:%M:%S %Z", &ctx);
-
     return std::string(buffer);
 }
 
-static std::time_t string_to_timet(std::string timestamp) {
+std::time_t string_to_timet(const std::string& timestamp) {
     char* end = nullptr;
     auto cv = strtol(timestamp.c_str(), &end, 10);
     if (end == timestamp.c_str())
@@ -135,19 +155,18 @@ static std::time_t string_to_timet(std::string timestamp) {
     return static_cast<time_t>(cv);
 }
 
-static std::tm timet_to_tm(time_t timestamp) {
+std::tm timet_to_tm(time_t timestamp) {
     std::tm context;
-
     localtime_s(&context, &timestamp);
-
     return context;
 }
 
-static std::string remaining_until(std::string timestamp) {
+std::string remaining_until(const std::string& timestamp) {
     const auto expiry = string_to_timet(timestamp);
     const auto now = std::time(nullptr);
     if (expiry <= now)
         return "expired"; // already expired. -nigel
+
     auto diff = std::chrono::seconds(expiry - now);
     auto days = std::chrono::duration_cast<std::chrono::hours>(diff).count() / 24;
     auto weeks = days / 7;

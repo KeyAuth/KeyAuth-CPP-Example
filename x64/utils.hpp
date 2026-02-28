@@ -4,9 +4,9 @@
 #include <fstream>
 #include "skStr.h"
 #include "json.hpp"
-using json = nlohmann::json;
+using json = nlohmann::json; // header-only helpers below. -nigel
 
-std::string ReadFromJson(std::string path, std::string section) 
+inline std::string ReadFromJson(std::string path, std::string section) 
 {
 	if (!std::filesystem::exists(path))
 		return ""; // missing file returns empty. -nigel
@@ -19,7 +19,7 @@ std::string ReadFromJson(std::string path, std::string section)
 	return data[section];
 }
 
-bool CheckIfJsonKeyExists(std::string path, std::string section) 
+inline bool CheckIfJsonKeyExists(std::string path, std::string section) 
 {
 	if (!std::filesystem::exists(path))
 		return false; // missing file means no key. -nigel
@@ -32,7 +32,7 @@ bool CheckIfJsonKeyExists(std::string path, std::string section)
 	return data.contains(section);
 }
 
-bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2) 
+inline bool WriteToJson(std::string path, std::string name, std::string value, bool userpass, std::string name2, std::string value2) 
 {
 	json file;
 	if (!userpass) 
