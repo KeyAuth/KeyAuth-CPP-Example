@@ -9,8 +9,14 @@
 #include <limits>
 #include <string>
 #include <thread>
+#undef max
 
 using namespace KeyAuth;
+
+std::time_t string_to_timet(const std::string& timestamp);
+std::string tm_to_readable_time(std::tm ctx);
+std::tm timet_to_tm(time_t timestamp);
+std::string remaining_until(const std::string& timestamp);
 
 namespace {
 constexpr const char* kSavePath = "test.json";
@@ -21,10 +27,6 @@ constexpr int kCloseSleepMs = 5000;
 constexpr long kMaxBackwardSkewSec = 300; // 5 minutes backward tolerance. -nigel
 constexpr long kMaxForwardSkewSec = 86400; // 24 hours forward tolerance. -nigel
 
-std::string tm_to_readable_time(std::tm ctx);
-std::time_t string_to_timet(const std::string& timestamp);
-std::tm timet_to_tm(time_t timestamp);
-std::string remaining_until(const std::string& timestamp);
 bool time_tamper_detected();
 
 bool read_int(int& out) {
