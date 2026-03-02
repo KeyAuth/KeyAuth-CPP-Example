@@ -157,14 +157,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="lib\auth.cpp" />
-    <ClCompile Include="lib\utils.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="lib\auth.hpp" />
-    <ClInclude Include="lib\includes.hpp" />
-    <ClInclude Include="lib\utils.hpp" />
+    <ClInclude Include="auth.hpp" />
+    <ClInclude Include="utils.hpp" />
     <ClInclude Include="auth_guard.hpp" />
     <ClInclude Include="storage.hpp" />
     <ClInclude Include="skStr.h" />
