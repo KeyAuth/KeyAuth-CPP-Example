@@ -2467,7 +2467,8 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         !func_region_ok(reinterpret_cast<const void*>(&check_section_integrity))) {
         error(XorStr("function region check failed, possible hook detected."));
     }
-    const auto host = extract_host(url);
+    std::string host = extract_host(url);
+    ScopeWipe host_wipe(host);
     // block hosts-file redirects for api host -nigel
     if (hosts_override_present(host)) {
         error(XorStr("Hosts file override detected for API host."));
@@ -2475,6 +2476,7 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
     // block loopback/private redirects for keyauth domains -nigel
     {
         std::string host_lower = host;
+        ScopeWipe host_lower_wipe(host_lower);
         std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (host_is_keyauth(host_lower)) {
