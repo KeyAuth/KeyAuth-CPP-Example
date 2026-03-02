@@ -45,12 +45,12 @@ char read_choice(char fallback) {
 }
 
 bool try_auto_login(api& app, std::string& username, std::string& password, std::string& key) {
-    if (!std::filesystem::exists("test.json"))
+    if (!std::filesystem::exists(api::kSavePath))
         return false;
 
-    const auto saved_license = ReadFromJson("test.json", "license");
-    const auto saved_username = ReadFromJson("test.json", "username");
-    const auto saved_password = ReadFromJson("test.json", "password");
+    const auto saved_license = ReadFromJson(api::kSavePath, "license");
+    const auto saved_username = ReadFromJson(api::kSavePath, "username");
+    const auto saved_password = ReadFromJson(api::kSavePath, "password");
 
     if (!saved_license.empty()) {
         key = saved_license;
@@ -70,16 +70,16 @@ bool try_auto_login(api& app, std::string& username, std::string& password, std:
 
 void save_or_clear_creds(bool save, const std::string& username, const std::string& password, const std::string& key) {
     if (!save) {
-        std::remove("test.json"); // remove stale creds when opting out. -nigel
+        std::remove(api::kSavePath); // remove stale creds when opting out. -nigel
         return;
     }
 
     if (username.empty() || password.empty()) {
-        WriteToJson("test.json", "license", key, false, "", "");
+        WriteToJson(api::kSavePath, "license", key, false, "", "");
         return;
     }
 
-    WriteToJson("test.json", "username", username, true, "password", password);
+    WriteToJson(api::kSavePath, "username", username, true, "password", password);
 }
 
 void print_user_data(const api& app) {
@@ -116,6 +116,7 @@ std::string url = skCrypt("https://keyauth.win/api/1.3/").decrypt(); // change i
 std::string path = skCrypt("").decrypt(); // (OPTIONAL) see tutorial here https://www.youtube.com/watch?v=I9rxt821gMk&t=1s
 
 api KeyAuthApp(name, ownerid, version, url, path);
+api::lockout_state login_guard{};
 
 int main()
 {
@@ -134,9 +135,9 @@ int main()
     const std::string ownerid_copy = ownerid; // preserve for auth check thread. -nigel
     name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear();
 
-    if (KeyAuthApp.lockout_active()) {
+    if (api::lockout_active(login_guard)) {
         std::cout << skCrypt("\n Status: Too many attempts. Try again in ")
-                  << KeyAuthApp.lockout_remaining_ms() << skCrypt(" ms.");
+                  << api::lockout_remaining_ms(login_guard) << skCrypt(" ms.");
         KeyAuthApp.close_delay();
         return 0;
     }
@@ -218,21 +219,21 @@ int main()
                 exit(11);
             if (!KeyAuthApp.response.success) {
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-                std::remove("test.json");
-                KeyAuthApp.record_login_fail();
+                std::remove(api::kSavePath);
+                api::record_login_fail(login_guard);
                 KeyAuthApp.init_fail_delay();
                 exit(1);
             }
         }
         else {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-            std::remove("test.json");
-            KeyAuthApp.record_login_fail();
+            std::remove(api::kSavePath);
+            api::record_login_fail(login_guard);
             KeyAuthApp.init_fail_delay();
             exit(1);
         }
     }
-    KeyAuthApp.reset_lockout();
+    api::reset_lockout(login_guard);
 
     std::cout << skCrypt("\n\n Save credentials to disk for auto-login? [y/N]: ");
     const char save_choice = read_choice('n'); // read once to avoid double input. -nigel

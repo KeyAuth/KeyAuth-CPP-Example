@@ -14,15 +14,6 @@ jobs:
       - name: setup msvc
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: build x86 release
-        shell: powershell
-        run: |
-          if (Test-Path "x86/example.sln") {
-            msbuild "x86/example.sln" /m /p:Configuration=Release /p:Platform=Win32
-          } else {
-            Write-Error "x86/example.sln not found"
-          }
-
       - name: build x64 release
         shell: powershell
         run: |

@@ -1,7 +1,7 @@
 #include <Windows.h>
-#include "auth.hpp"
+#include "lib/auth.hpp"
 #include "skStr.h"
-#include "utils.hpp"
+#include "lib/utils.hpp"
 #include <chrono>
 #include <ctime>
 #include <iostream>
@@ -56,6 +56,7 @@ std::string url = skCrypt("https://keyauth.win/api/1.3/").decrypt(); // change i
 std::string path = skCrypt("").decrypt(); // optional, set a path if you're using the token validation setting
 
 api KeyAuthApp(name, ownerid, version, url, path);
+api::lockout_state login_guard{};
 
 int main()
 {
@@ -73,9 +74,9 @@ int main()
 
     name.clear(); ownerid.clear(); version.clear(); url.clear(); // reduce exposure in memory. -nigel
 
-    if (KeyAuthApp.lockout_active()) {
+    if (api::lockout_active(login_guard)) {
         std::cout << skCrypt("\n Status: Too many attempts. Try again in ")
-                  << KeyAuthApp.lockout_remaining_ms() << skCrypt(" ms.");
+                  << api::lockout_remaining_ms(login_guard) << skCrypt(" ms.");
         KeyAuthApp.close_delay();
         return 0;
     }
@@ -133,11 +134,11 @@ int main()
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        KeyAuthApp.record_login_fail();
+        api::record_login_fail(login_guard);
         KeyAuthApp.init_fail_delay();
         exit(1);
     }
-    KeyAuthApp.reset_lockout();
+    api::reset_lockout(login_guard);
 
     print_user_data(KeyAuthApp);
 
