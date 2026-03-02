@@ -367,3 +367,10 @@ if (KeyAuthApp.response.success)
         std::cout << KeyAuthApp.response.message << std::endl;
 }
 ```
+
+## SDK Dependencies
+This repo does not include the KeyAuth C++ SDK binaries/headers. Populate the following folders from the KeyAuth 1.3 SDK repo:
+- `x64/lib/`
+- `x86/lib/`
+
+You can copy the `lib/` folder contents from `keyauth-cpp-library-1.3API` into each architecture folder.
