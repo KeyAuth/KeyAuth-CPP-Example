@@ -157,6 +157,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="lib\auth.cpp" />
+    <ClCompile Include="lib\utils.cpp" />
+    <ClCompile Include="lib\QRCode\pingout.cpp" />
+    <ClCompile Include="lib\QRCode\qr.png.cpp" />
+    <ClCompile Include="lib\QRCode\qrcode.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
