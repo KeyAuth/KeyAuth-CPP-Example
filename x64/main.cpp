@@ -1,7 +1,9 @@
 #include <Windows.h>
-#include "auth.hpp"
+#include "lib/auth.hpp"
+#include "lib/utils.hpp"
+#include "auth_guard.hpp"
 #include "skStr.h"
-#include "utils.hpp"
+#include "storage.hpp"
 #include <chrono>
 #include <ctime>
 #include <filesystem>
@@ -13,21 +15,16 @@
 
 using namespace KeyAuth;
 
-std::time_t string_to_timet(const std::string& timestamp);
 std::string tm_to_readable_time(std::tm ctx);
-std::tm timet_to_tm(time_t timestamp);
 std::string remaining_until(const std::string& timestamp);
 
 namespace {
 constexpr const char* kSavePath = "test.json";
-constexpr const char* kTimeGuardPath = "time_guard.json"; // local time tamper guard. -nigel
 constexpr int kInitFailSleepMs = 1500;
 constexpr int kBadInputSleepMs = 3000;
 constexpr int kCloseSleepMs = 5000;
-constexpr long kMaxBackwardSkewSec = 300; // 5 minutes backward tolerance. -nigel
-constexpr long kMaxForwardSkewSec = 86400; // 24 hours forward tolerance. -nigel
 
-bool time_tamper_detected();
+
 
 bool read_int(int& out) {
     std::cin >> out;
@@ -93,33 +90,19 @@ void print_user_data(const api& app) {
     std::cout << skCrypt("\n Username: ") << app.user_data.username;
     std::cout << skCrypt("\n IP address: ") << app.user_data.ip;
     std::cout << skCrypt("\n Hardware-Id: ") << app.user_data.hwid;
-    std::cout << skCrypt("\n Create date: ") << tm_to_readable_time(timet_to_tm(string_to_timet(app.user_data.createdate)));
-    std::cout << skCrypt("\n Last login: ") << tm_to_readable_time(timet_to_tm(string_to_timet(app.user_data.lastlogin)));
+    std::cout << skCrypt("\n Create date: ")
+              << tm_to_readable_time(utils::timet_to_tm(utils::string_to_timet(app.user_data.createdate)));
+    std::cout << skCrypt("\n Last login: ")
+              << tm_to_readable_time(utils::timet_to_tm(utils::string_to_timet(app.user_data.lastlogin)));
     std::cout << skCrypt("\n Subscription(s): ");
 
     for (size_t i = 0; i < app.user_data.subscriptions.size(); i++) {
         const auto& sub = app.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
-        std::cout << skCrypt(" : expiry: ") << tm_to_readable_time(timet_to_tm(string_to_timet(sub.expiry)));
+        std::cout << skCrypt(" : expiry: ")
+                  << tm_to_readable_time(utils::timet_to_tm(utils::string_to_timet(sub.expiry)));
         std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")");
     }
-}
-
-bool time_tamper_detected() {
-    const auto now = std::time(nullptr);
-    const auto last_str = ReadFromJson(kTimeGuardPath, "last");
-    if (!last_str.empty()) {
-        const auto last = string_to_timet(last_str);
-        if (last > 0) {
-            if (now + kMaxBackwardSkewSec < last)
-                return true; // clock moved backward beyond tolerance. -nigel
-            if (now > last + kMaxForwardSkewSec)
-                return true; // clock jumped forward beyond tolerance. -nigel
-        }
-    }
-
-    WriteToJson(kTimeGuardPath, "last", std::to_string(now), false, "", "");
-    return false;
 }
 } // namespace
 
@@ -153,12 +136,6 @@ int main()
 
     const std::string ownerid_copy = ownerid; // preserve for auth check thread. -nigel
     name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear();
-
-    if (time_tamper_detected()) {
-        std::cout << skCrypt("\n Status: Failure: System time appears incorrect.");
-        Sleep(kBadInputSleepMs);
-        exit(1);
-    }
 
     std::string username;
     std::string password;
@@ -310,35 +287,6 @@ std::string tm_to_readable_time(std::tm ctx) {
     return std::string(buffer);
 }
 
-std::time_t string_to_timet(const std::string& timestamp) {
-    char* end = nullptr;
-    auto cv = strtol(timestamp.c_str(), &end, 10);
-    if (end == timestamp.c_str())
-        return 0; // invalid timestamp returns epoch. -nigel
-    return static_cast<time_t>(cv);
-}
-
-std::tm timet_to_tm(time_t timestamp) {
-    std::tm context;
-    localtime_s(&context, &timestamp);
-    return context;
-}
-
 std::string remaining_until(const std::string& timestamp) {
-    const auto expiry = string_to_timet(timestamp);
-    const auto now = std::time(nullptr);
-    if (expiry <= now)
-        return "expired"; // already expired. -nigel
-
-    auto diff = std::chrono::seconds(expiry - now);
-    auto days = std::chrono::duration_cast<std::chrono::hours>(diff).count() / 24;
-    auto weeks = days / 7;
-    auto months = days / 30;
-    auto years = days / 365;
-    std::string out;
-    if (years > 0) out += std::to_string(years) + "y ";
-    if (months > 0) out += std::to_string(months % 12) + "mo ";
-    if (weeks > 0) out += std::to_string(weeks % 4) + "w ";
-    out += std::to_string(days % 7) + "d";
-    return out;
+    return api::expiry_remaining(timestamp);
 }

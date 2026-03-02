@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup msvc
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: build x86 release
+        shell: powershell
+        run: |
+          if (Test-Path "x86/example.sln") {
+            msbuild "x86/example.sln" /m /p:Configuration=Release /p:Platform=Win32
+          } else {
+            Write-Error "x86/example.sln not found"
+          }
+
+      - name: build x64 release
+        shell: powershell
+        run: |
+          if (Test-Path "x64/example.sln") {
+            msbuild "x64/example.sln" /m /p:Configuration=Release /p:Platform=x64
+          } else {
+            Write-Error "x64/example.sln not found"
+          }
