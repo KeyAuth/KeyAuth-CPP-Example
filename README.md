@@ -10,7 +10,7 @@ This video explains both how to use this example, but also how to add KeyAuth to
 
 ## **Bugs**
 
-If you are using our example with no significant changes, and you are having problems, please Report Bug here https://keyauth.cc/app/?page=forms
+If you are using our example with no significant changes, and you are having problems, please Report Bug here https://keyauth.fdback.io
 
 However, we do **NOT** provide support for adding KeyAuth to your project. If you can't figure this out you should use Google or YouTube to learn more about the programming language you want to sell a program in.
 
