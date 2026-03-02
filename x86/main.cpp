@@ -11,9 +11,7 @@
 using namespace KeyAuth;
 
 namespace {
-constexpr int kInitFailSleepMs = 1500;
-constexpr int kBadInputSleepMs = 3000;
-constexpr int kCloseSleepMs = 5000;
+
 std::string tm_to_readable_time(std::tm ctx);
 std::string remaining_until(const std::string& timestamp);
 
@@ -69,7 +67,7 @@ int main()
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(kInitFailSleepMs);
+        Sleep(1500);
         exit(1);
     }
 
@@ -85,7 +83,7 @@ int main()
     if (!read_int(option))
     {
         std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-        Sleep(kBadInputSleepMs);
+        Sleep(3000);
         exit(1);
     }
 
@@ -121,21 +119,21 @@ int main()
         break;
     default:
         std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-        Sleep(kBadInputSleepMs);
+        Sleep(3000);
         exit(1);
     }
 
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(kInitFailSleepMs);
+        Sleep(1500);
         exit(1);
     }
 
     print_user_data(KeyAuthApp);
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
-    Sleep(kCloseSleepMs);
+    Sleep(5000);
 
     return 0;
 }

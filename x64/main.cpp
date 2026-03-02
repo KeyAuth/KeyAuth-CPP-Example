@@ -19,10 +19,7 @@ std::string tm_to_readable_time(std::tm ctx);
 std::string remaining_until(const std::string& timestamp);
 
 namespace {
-constexpr const char* kSavePath = "test.json";
-constexpr int kInitFailSleepMs = 1500;
-constexpr int kBadInputSleepMs = 3000;
-constexpr int kCloseSleepMs = 5000;
+
 
 
 
@@ -48,12 +45,12 @@ char read_choice(char fallback) {
 }
 
 bool try_auto_login(api& app, std::string& username, std::string& password, std::string& key) {
-    if (!std::filesystem::exists(kSavePath))
+    if (!std::filesystem::exists("test.json"))
         return false;
 
-    const auto saved_license = ReadFromJson(kSavePath, "license");
-    const auto saved_username = ReadFromJson(kSavePath, "username");
-    const auto saved_password = ReadFromJson(kSavePath, "password");
+    const auto saved_license = ReadFromJson("test.json", "license");
+    const auto saved_username = ReadFromJson("test.json", "username");
+    const auto saved_password = ReadFromJson("test.json", "password");
 
     if (!saved_license.empty()) {
         key = saved_license;
@@ -73,16 +70,16 @@ bool try_auto_login(api& app, std::string& username, std::string& password, std:
 
 void save_or_clear_creds(bool save, const std::string& username, const std::string& password, const std::string& key) {
     if (!save) {
-        std::remove(kSavePath); // remove stale creds when opting out. -nigel
+        std::remove("test.json"); // remove stale creds when opting out. -nigel
         return;
     }
 
     if (username.empty() || password.empty()) {
-        WriteToJson(kSavePath, "license", key, false, "", "");
+        WriteToJson("test.json", "license", key, false, "", "");
         return;
     }
 
-    WriteToJson(kSavePath, "username", username, true, "password", password);
+    WriteToJson("test.json", "username", username, true, "password", password);
 }
 
 void print_user_data(const api& app) {
@@ -130,7 +127,7 @@ int main()
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(kInitFailSleepMs);
+        Sleep(1500);
         exit(1);
     }
 
@@ -152,7 +149,7 @@ int main()
         if (!read_int(option))
         {
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-            Sleep(kBadInputSleepMs);
+            Sleep(3000);
             exit(1);
         }
 
@@ -188,7 +185,7 @@ int main()
             break;
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-            Sleep(kBadInputSleepMs);
+            Sleep(3000);
             exit(1);
         }
     }
@@ -214,15 +211,15 @@ int main()
                 exit(11);
             if (!KeyAuthApp.response.success) {
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-                std::remove(kSavePath);
-                Sleep(kInitFailSleepMs);
+                std::remove("test.json");
+                Sleep(1500);
                 exit(1);
             }
         }
         else {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-            std::remove(kSavePath);
-            Sleep(kInitFailSleepMs);
+            std::remove("test.json");
+            Sleep(1500);
             exit(1);
         }
     }
@@ -259,7 +256,7 @@ int main()
 
     std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
     std::cout << skCrypt("\n\n Closing in five seconds...");
-    Sleep(kCloseSleepMs);
+    Sleep(5000);
 
     return 0;
 }
