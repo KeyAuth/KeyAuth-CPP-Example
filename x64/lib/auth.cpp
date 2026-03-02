@@ -52,6 +52,7 @@
 #include <utility>
 #include <stdexcept>
 #include <ws2tcpip.h>
+#include <winhttp.h>
 #include <string>
 #include <array>
 
