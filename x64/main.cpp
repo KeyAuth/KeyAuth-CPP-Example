@@ -1,6 +1,6 @@
 #include <Windows.h>
-#include "auth.hpp"
-#include "utils.hpp"
+#include "lib/auth.hpp"
+#include "lib/utils.hpp"
 #include "auth_guard.hpp"
 #include "skStr.h"
 #include "storage.hpp"
