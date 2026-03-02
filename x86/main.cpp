@@ -74,6 +74,11 @@ int main()
 
     name.clear(); ownerid.clear(); version.clear(); url.clear(); // reduce exposure in memory. -nigel
 
+    // Optional network hardening (client-side only)
+    KeyAuthApp.set_allowed_hosts({ "keyauth.win" });
+    // KeyAuthApp.add_allowed_host("api.example.com"); // add custom domain if used
+    // KeyAuthApp.add_pinned_public_key("sha256//BASE64_SPKI_HASH"); // optional pin
+
     if (api::lockout_active(login_guard)) {
         std::cout << skCrypt("\n Status: Too many attempts. Try again in ")
                   << api::lockout_remaining_ms(login_guard) << skCrypt(" ms.");
