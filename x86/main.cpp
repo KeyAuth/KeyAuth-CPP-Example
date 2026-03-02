@@ -67,11 +67,18 @@ int main()
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(1500);
+        KeyAuthApp.init_fail_delay();
         exit(1);
     }
 
     name.clear(); ownerid.clear(); version.clear(); url.clear(); // reduce exposure in memory. -nigel
+
+    if (KeyAuthApp.lockout_active()) {
+        std::cout << skCrypt("\n Status: Too many attempts. Try again in ")
+                  << KeyAuthApp.lockout_remaining_ms() << skCrypt(" ms.");
+        KeyAuthApp.close_delay();
+        return 0;
+    }
 
     std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
 
@@ -83,7 +90,7 @@ int main()
     if (!read_int(option))
     {
         std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-        Sleep(3000);
+        KeyAuthApp.bad_input_delay();
         exit(1);
     }
 
@@ -119,21 +126,23 @@ int main()
         break;
     default:
         std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-        Sleep(3000);
+        KeyAuthApp.bad_input_delay();
         exit(1);
     }
 
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(1500);
+        KeyAuthApp.record_login_fail();
+        KeyAuthApp.init_fail_delay();
         exit(1);
     }
+    KeyAuthApp.reset_lockout();
 
     print_user_data(KeyAuthApp);
 
     std::cout << skCrypt("\n\n Closing in five seconds...");
-    Sleep(5000);
+    KeyAuthApp.close_delay();
 
     return 0;
 }

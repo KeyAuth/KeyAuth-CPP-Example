@@ -127,12 +127,19 @@ int main()
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        Sleep(1500);
+        KeyAuthApp.init_fail_delay();
         exit(1);
     }
 
     const std::string ownerid_copy = ownerid; // preserve for auth check thread. -nigel
     name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear();
+
+    if (KeyAuthApp.lockout_active()) {
+        std::cout << skCrypt("\n Status: Too many attempts. Try again in ")
+                  << KeyAuthApp.lockout_remaining_ms() << skCrypt(" ms.");
+        KeyAuthApp.close_delay();
+        return 0;
+    }
 
     std::string username;
     std::string password;
@@ -149,7 +156,7 @@ int main()
         if (!read_int(option))
         {
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-            Sleep(3000);
+            KeyAuthApp.bad_input_delay();
             exit(1);
         }
 
@@ -185,7 +192,7 @@ int main()
             break;
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-            Sleep(3000);
+            KeyAuthApp.bad_input_delay();
             exit(1);
         }
     }
@@ -212,17 +219,20 @@ int main()
             if (!KeyAuthApp.response.success) {
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
                 std::remove("test.json");
-                Sleep(1500);
+                KeyAuthApp.record_login_fail();
+                KeyAuthApp.init_fail_delay();
                 exit(1);
             }
         }
         else {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
             std::remove("test.json");
-            Sleep(1500);
+            KeyAuthApp.record_login_fail();
+            KeyAuthApp.init_fail_delay();
             exit(1);
         }
     }
+    KeyAuthApp.reset_lockout();
 
     std::cout << skCrypt("\n\n Save credentials to disk for auto-login? [y/N]: ");
     const char save_choice = read_choice('n'); // read once to avoid double input. -nigel
@@ -256,7 +266,7 @@ int main()
 
     std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
     std::cout << skCrypt("\n\n Closing in five seconds...");
-    Sleep(5000);
+    KeyAuthApp.close_delay();
 
     return 0;
 }
