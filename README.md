@@ -114,6 +114,20 @@ if (KeyAuthApp.checkblack()) {
 }
 ```
 
+## **Live ban monitor (threaded)**
+
+Optional background check that polls every 45 seconds. Always stop it before exiting.
+
+```cpp
+KeyAuthApp.start_ban_monitor(45, false, [] {
+    std::cout << "Blacklisted, exiting..." << std::endl;
+    exit(0);
+});
+
+// later, before exit
+KeyAuthApp.stop_ban_monitor();
+```
+
 ## **Login with username/password**
 
 ```cpp
