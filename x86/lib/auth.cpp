@@ -1981,6 +1981,45 @@ static bool host_is_keyauth(const std::string& host_lower)
     return false;
 }
 
+static bool is_https_url(const std::string& url)
+{
+    const std::string prefix = "https://";
+    if (url.size() < prefix.size())
+        return false;
+    for (size_t i = 0; i < prefix.size(); ++i) {
+        const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(url[i])));
+        if (c != prefix[i])
+            return false;
+    }
+    return true;
+}
+
+static bool proxy_env_set()
+{
+    const char* keys[] = { "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy" };
+    for (const char* k : keys) {
+        const char* v = std::getenv(k);
+        if (v && *v)
+            return true;
+    }
+    return false;
+}
+
+static bool winhttp_proxy_set()
+{
+    WINHTTP_PROXY_INFO info{};
+    if (!WinHttpGetDefaultProxyConfiguration(&info))
+        return false;
+    bool set = false;
+    if (info.lpszProxy && *info.lpszProxy)
+        set = true;
+    if (info.lpszProxyBypass && *info.lpszProxyBypass)
+        set = true;
+    if (info.lpszProxy) GlobalFree(info.lpszProxy);
+    if (info.lpszProxyBypass) GlobalFree(info.lpszProxyBypass);
+    return set;
+}
+
 static bool host_resolves_private_only(const std::string& host, bool& has_public)
 {
     has_public = false;
@@ -2467,6 +2506,9 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         !func_region_ok(reinterpret_cast<const void*>(&check_section_integrity))) {
         error(XorStr("function region check failed, possible hook detected."));
     }
+    if (!is_https_url(url)) {
+        error(XorStr("API URL must use HTTPS."));
+    }
     std::string host = extract_host(url);
     ScopeWipe host_wipe(host);
     // block hosts-file redirects for api host -nigel
@@ -2482,6 +2524,9 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         if (host_is_keyauth(host_lower)) {
             if (is_ip_literal(host_lower)) {
                 error(XorStr("API host must not be an IP literal."));
+            }
+            if (proxy_env_set() || winhttp_proxy_set()) {
+                error(XorStr("Proxy settings detected for API host."));
             }
             bool has_public = false;
             if (host_resolves_private_only(host_lower, has_public) && !has_public) {
