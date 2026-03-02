@@ -166,6 +166,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\auth.hpp" />
+    <ClInclude Include="lib\killEmulator.hpp" />
     <ClInclude Include="lib\Security.hpp" />
     <ClInclude Include="lib\utils.hpp" />
     <ClInclude Include="auth_guard.hpp" />
