@@ -374,3 +374,30 @@ This repo does not include the KeyAuth C++ SDK binaries/headers. Populate the fo
 - `x86/lib/`
 
 You can copy the `lib/` folder contents from `keyauth-cpp-library-1.3API` into each architecture folder.
+
+## Lockout & Delay Helpers (KeyAuth 1.3 SDK)
+The example now wires the built-in helpers from the KeyAuth 1.3 SDK for safer rate limiting and consistent delays.
+
+Typical usage:
+```cpp
+if (KeyAuthApp.lockout_active()) {
+    std::cout << "Try again in " << KeyAuthApp.lockout_remaining_ms() << " ms";
+    KeyAuthApp.close_delay();
+    return 0;
+}
+
+// on init failure
+KeyAuthApp.init_fail_delay();
+
+// on bad input
+KeyAuthApp.bad_input_delay();
+
+// on failed auth
+KeyAuthApp.record_login_fail();
+
+// on successful auth
+KeyAuthApp.reset_lockout();
+
+// before exit
+KeyAuthApp.close_delay();
+```
