@@ -51,6 +51,7 @@
 #include <vector>
 #include <utility>
 #include <stdexcept>
+#include <ws2tcpip.h>
 #include <string>
 #include <array>
 
@@ -1938,10 +1939,90 @@ std::string extract_host(const std::string& url)
     return host;
 }
 
+static bool is_ip_literal(const std::string& host)
+{
+    sockaddr_in sa4{};
+    sockaddr_in6 sa6{};
+    return inet_pton(AF_INET, host.c_str(), &sa4.sin_addr) == 1 ||
+        inet_pton(AF_INET6, host.c_str(), &sa6.sin6_addr) == 1;
+}
+
+static bool is_private_or_loopback_ipv4(uint32_t addr_net_order)
+{
+    const uint32_t a = ntohl(addr_net_order);
+    const uint8_t b1 = static_cast<uint8_t>(a >> 24);
+    const uint8_t b2 = static_cast<uint8_t>((a >> 16) & 0xFF);
+    if (b1 == 10) return true;
+    if (b1 == 127) return true;
+    if (b1 == 0) return true;
+    if (b1 == 169 && b2 == 254) return true;
+    if (b1 == 192 && b2 == 168) return true;
+    if (b1 == 172) {
+        const uint8_t b3 = static_cast<uint8_t>((a >> 8) & 0xFF);
+        if (b3 >= 16 && b3 <= 31) return true;
+    }
+    return false;
+}
+
+static bool is_loopback_ipv6(const in6_addr& addr)
+{
+    static const in6_addr loopback = IN6ADDR_LOOPBACK_INIT;
+    return std::memcmp(&addr, &loopback, sizeof(loopback)) == 0;
+}
+
+static bool host_is_keyauth(const std::string& host_lower)
+{
+    if (host_lower == "keyauth.win" || host_lower == "keyauth.cc" || host_lower == "api-worker.keyauth.win")
+        return true;
+    const std::string suffix = ".keyauth.win";
+    if (host_lower.size() > suffix.size() &&
+        host_lower.compare(host_lower.size() - suffix.size(), suffix.size(), suffix) == 0)
+        return true;
+    return false;
+}
+
+static bool host_resolves_private_only(const std::string& host, bool& has_public)
+{
+    has_public = false;
+    addrinfo hints{};
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_UNSPEC;
+    addrinfo* res = nullptr;
+    if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0)
+        return false;
+    bool any = false;
+    bool all_private = true;
+    for (addrinfo* p = res; p; p = p->ai_next) {
+        if (!p->ai_addr)
+            continue;
+        any = true;
+        if (p->ai_family == AF_INET) {
+            const auto* sa = reinterpret_cast<sockaddr_in*>(p->ai_addr);
+            if (!is_private_or_loopback_ipv4(sa->sin_addr.s_addr)) {
+                all_private = false;
+                has_public = true;
+            }
+        } else if (p->ai_family == AF_INET6) {
+            const auto* sa = reinterpret_cast<sockaddr_in6*>(p->ai_addr);
+            if (!is_loopback_ipv6(sa->sin6_addr)) {
+                all_private = false;
+                has_public = true;
+            }
+        }
+    }
+    freeaddrinfo(res);
+    if (!any)
+        return false;
+    return all_private;
+}
+
 bool hosts_override_present(const std::string& host)
 {
     if (host.empty())
         return false;
+    std::string host_lower = host;
+    std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     const char* sysroot = std::getenv("SystemRoot");
     std::string hosts_path = sysroot ? std::string(sysroot) : "C:\\Windows";
     hosts_path += "\\System32\\drivers\\etc\\hosts";
@@ -1953,10 +2034,12 @@ bool hosts_override_present(const std::string& host)
         auto hash_pos = line.find('#');
         if (hash_pos != std::string::npos)
             line = line.substr(0, hash_pos);
-        if (line.find(host) == std::string::npos)
+        std::transform(line.begin(), line.end(), line.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (line.find(host_lower) == std::string::npos)
             continue;
         // basic whole-word check
-        if (line.find(" " + host) != std::string::npos || line.find("\t" + host) != std::string::npos)
+        if (line.find(" " + host_lower) != std::string::npos || line.find("\t" + host_lower) != std::string::npos)
             return true;
     }
     return false;
@@ -2388,6 +2471,21 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
     // block hosts-file redirects for api host -nigel
     if (hosts_override_present(host)) {
         error(XorStr("Hosts file override detected for API host."));
+    }
+    // block loopback/private redirects for keyauth domains -nigel
+    {
+        std::string host_lower = host;
+        std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (host_is_keyauth(host_lower)) {
+            if (is_ip_literal(host_lower)) {
+                error(XorStr("API host must not be an IP literal."));
+            }
+            bool has_public = false;
+            if (host_resolves_private_only(host_lower, has_public) && !has_public) {
+                error(XorStr("API host resolves to private or loopback."));
+            }
+        }
     }
 
     CURL* curl = curl_easy_init();
