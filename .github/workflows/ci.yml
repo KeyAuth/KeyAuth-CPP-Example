@@ -11,6 +11,23 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
+      - name: checkout keyauth-cpp-library-1.3API
+        uses: actions/checkout@v4
+        with:
+          repository: ELF-Nigel/keyauth-cpp-library-1.3API
+          path: keyauth-lib
+          ssh-key: ${{ secrets.KEYAUTH_CPP_LIB_DEPLOY_KEY }}
+
+      - name: sync library into example
+        shell: powershell
+        run: |
+          if (Test-Path "keyauth-lib") {
+            Copy-Item -Recurse -Force "keyauth-lib\\*" "x86\\lib"
+            Copy-Item -Recurse -Force "keyauth-lib\\*" "x64\\lib"
+          } else {
+            Write-Error "Library checkout missing"
+          }
+
       - name: setup msvc
         uses: ilammy/msvc-dev-cmd@v1
 
