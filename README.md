@@ -415,15 +415,3 @@ KeyAuthApp.reset_lockout();
 // before exit
 KeyAuthApp.close_delay();
 ```
-
-## Keeping Example + Library In Sync
-This repo is kept in sync with `ELF-Nigel/keyauth-cpp-library-1.3API`.
-
-Local sync:
-```bash
-./scripts/sync_lib.sh git@github.com:ELF-Nigel/keyauth-cpp-library-1.3API.git
-```
-
-CI sync:
-- The workflow checks out the library repo and copies it into `x86/lib` and `x64/lib` before building.
-- Add a repo secret named `KEYAUTH_CPP_LIB_DEPLOY_KEY` with the **library repo** deploy key (read/write).
