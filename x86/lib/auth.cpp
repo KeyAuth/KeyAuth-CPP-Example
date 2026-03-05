@@ -69,8 +69,19 @@
 #include <cctype>
 #include <algorithm>
 
+#if __has_include("Security.hpp")
 #include "Security.hpp"
+#define KEYAUTH_HAVE_SECURITY 1
+#else
+#define KEYAUTH_HAVE_SECURITY 0
+#endif
+
+#if __has_include("killEmulator.hpp")
 #include "killEmulator.hpp"
+#define KEYAUTH_HAVE_KILLEMU 1
+#else
+#define KEYAUTH_HAVE_KILLEMU 0
+#endif
 #include <lazy_importer.hpp>
 #include <QRCode/qrcode.hpp>
 #include <QRCode/qr.png.h>
@@ -168,6 +179,9 @@ void KeyAuth::api::init()
     // harden dll search order to reduce current-dir hijacks
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
     SetDllDirectoryW(L"");
+#if KEYAUTH_HAVE_SECURITY
+    LockMemAccess();
+#endif
     {
         wchar_t exe_path[MAX_PATH] = {};
         GetModuleFileNameW(nullptr, exe_path, MAX_PATH);
@@ -2093,6 +2107,22 @@ static bool winhttp_proxy_set()
     return set;
 }
 
+static bool winhttp_proxy_auto_set()
+{
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG cfg{};
+    if (!WinHttpGetIEProxyConfigForCurrentUser(&cfg))
+        return false;
+    bool set = false;
+    if (cfg.fAutoDetect)
+        set = true;
+    if (cfg.lpszAutoConfigUrl && *cfg.lpszAutoConfigUrl)
+        set = true;
+    if (cfg.lpszAutoConfigUrl) GlobalFree(cfg.lpszAutoConfigUrl);
+    if (cfg.lpszProxy) GlobalFree(cfg.lpszProxy);
+    if (cfg.lpszProxyBypass) GlobalFree(cfg.lpszProxyBypass);
+    return set;
+}
+
 static bool host_resolves_private_only(const std::string& host, bool& has_public)
 {
     has_public = false;
@@ -2181,6 +2211,29 @@ static bool dns_cache_poisoned(const std::string& host)
     fresh.erase(std::unique(fresh.begin(), fresh.end()), fresh.end());
 
     return cached != fresh;
+}
+
+static bool dns_fresh_contains_ip(const std::string& host, const std::string& ip)
+{
+    if (host.empty() || ip.empty())
+        return false;
+    std::vector<std::string> fresh;
+    PDNS_RECORD rec_fresh = nullptr;
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_A, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_AAAA, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+    if (fresh.empty())
+        return false;
+    for (const auto& entry : fresh) {
+        if (_stricmp(entry.c_str(), ip.c_str()) == 0)
+            return true;
+    }
+    return false;
 }
 
 bool hosts_override_present(const std::string& host)
@@ -2773,13 +2826,13 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
                 error(XorStr("API host is not in allowed host list."));
             }
         }
-        if (host_is_keyauth(host_lower)) {
-            if (is_ip_literal(host_lower)) {
-                error(XorStr("API host must not be an IP literal."));
-            }
-            if (proxy_env_set() || winhttp_proxy_set()) {
-                error(XorStr("Proxy settings detected for API host."));
-            }
+    if (host_is_keyauth(host_lower)) {
+        if (is_ip_literal(host_lower)) {
+            error(XorStr("API host must not be an IP literal."));
+        }
+        if (proxy_env_set() || winhttp_proxy_set() || winhttp_proxy_auto_set()) {
+            error(XorStr("Proxy settings detected for API host."));
+        }
             bool has_public = false;
             if (host_resolves_private_only(host_lower, has_public) && !has_public) {
                 error(XorStr("API host resolves to private or loopback."));
@@ -2877,10 +2930,20 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
             curl_easy_cleanup(curl);
             error(XorStr("api host resolved to private or loopback ip."));
         }
+        if (host_is_keyauth(host_lower) && !dns_fresh_contains_ip(host_lower, ip)) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("api host ip mismatch vs fresh dns."));
+        }
     }
 
     if (KeyAuth::api::debug) {
         debugInfo("n/a", "n/a", to_return, "n/a");
+    }
+    if (to_return.size() > (2 * 1024 * 1024)) {
+        if (req_headers) curl_slist_free_all(req_headers);
+        curl_easy_cleanup(curl);
+        error(XorStr("response too large."));
     }
     if (req_headers) curl_slist_free_all(req_headers);
     curl_easy_cleanup(curl);
@@ -3338,7 +3401,9 @@ void modify()
     while (true)
     {
         // new code by https://github.com/LiamG53
+        #if KEYAUTH_HAVE_KILLEMU
         protection::init();
+        #endif
         // ^ check for jumps, break points (maybe useless), return address.
 
         if ( check_section_integrity( XorStr( ".text" ).c_str( ), false ) )
