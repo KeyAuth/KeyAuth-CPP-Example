@@ -2028,11 +2028,15 @@ static bool is_private_or_loopback_ipv4(uint32_t addr_net_order)
     if (b1 == 127) return true;
     if (b1 == 0) return true;
     if (b1 == 169 && b2 == 254) return true;
+    if (b1 == 100 && (b2 >= 64 && b2 <= 127)) return true; // 100.64.0.0/10
     if (b1 == 192 && b2 == 168) return true;
+    if (b1 == 192 && b2 == 0) return true; // 192.0.0.0/24
+    if (b1 == 198 && (b2 == 18 || b2 == 19)) return true; // 198.18.0.0/15
     if (b1 == 172) {
         const uint8_t b3 = static_cast<uint8_t>((a >> 8) & 0xFF);
         if (b3 >= 16 && b3 <= 31) return true;
     }
+    if (b1 >= 224) return true; // multicast/reserved
     return false;
 }
 
@@ -2040,6 +2044,21 @@ static bool is_loopback_ipv6(const in6_addr& addr)
 {
     static const in6_addr loopback = IN6ADDR_LOOPBACK_INIT;
     return std::memcmp(&addr, &loopback, sizeof(loopback)) == 0;
+}
+
+static bool is_private_or_loopback_ipv6(const in6_addr& addr)
+{
+    if (is_loopback_ipv6(addr))
+        return true;
+    const uint8_t b0 = addr.u.Byte[0];
+    const uint8_t b1 = addr.u.Byte[1];
+    if ((b0 & 0xFE) == 0xFC) // fc00::/7 unique-local
+        return true;
+    if (b0 == 0xFE && (b1 & 0xC0) == 0x80) // fe80::/10 link-local
+        return true;
+    if ((b0 & 0xFF) == 0xFF) // multicast ff00::/8
+        return true;
+    return false;
 }
 
 static bool ip_string_private_or_loopback(const std::string& ip)
@@ -2052,7 +2071,7 @@ static bool ip_string_private_or_loopback(const std::string& ip)
     }
     sockaddr_in6 sa6{};
     if (inet_pton(AF_INET6, ip.c_str(), &sa6.sin6_addr) == 1) {
-        return is_loopback_ipv6(sa6.sin6_addr);
+        return is_private_or_loopback_ipv6(sa6.sin6_addr);
     }
     return false;
 }
@@ -2865,7 +2884,7 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
 #ifdef CURL_SSLVERSION_TLSv1_2
     curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
 #endif
-    curl_easy_setopt(curl, CURLOPT_NOPROXY, XorStr("keyauth.win").c_str());
+    curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &to_return);
@@ -2905,6 +2924,11 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
 
     char* effective_url = nullptr;
     if (curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url) == CURLE_OK && effective_url) {
+        if (!is_https_url(effective_url)) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("effective url not https."));
+        }
         std::string eff_host = extract_host(effective_url);
         std::string host_lower = host;
         std::string eff_lower = eff_host;
@@ -2916,6 +2940,15 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
             if (req_headers) curl_slist_free_all(req_headers);
             curl_easy_cleanup(curl);
             error(XorStr("effective url host mismatch."));
+        }
+    }
+
+    long primary_port = 0;
+    if (curl_easy_getinfo(curl, CURLINFO_PRIMARY_PORT, &primary_port) == CURLE_OK) {
+        if (primary_port != 443) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("api port mismatch."));
         }
     }
 
