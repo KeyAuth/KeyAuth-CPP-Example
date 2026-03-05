@@ -153,6 +153,7 @@ std::vector<std::pair<std::uintptr_t, DWORD>> text_protections;
 std::atomic<bool> data_prot_ready{ false };
 std::vector<std::pair<std::uintptr_t, DWORD>> data_protections;
 std::atomic<int> heavy_fail_streak{ 0 };
+static std::atomic<uint32_t> text_crc_baseline{ 0 };
 
 static inline void secure_zero(std::string& value) noexcept
 {
@@ -2421,6 +2422,14 @@ void snapshot_prologues()
     snapshot_text_hashes();
     snapshot_text_page_protections();
     snapshot_data_page_protections();
+    {
+        std::uintptr_t text_base = 0;
+        size_t text_size = 0;
+        if (get_text_section_info(text_base, text_size) && text_base && text_size) {
+            const auto* text_ptr = reinterpret_cast<const uint8_t*>(text_base);
+            text_crc_baseline.store(rolling_crc32(text_ptr, text_size));
+        }
+    }
 }
 
 bool prologues_ok()
@@ -2501,6 +2510,24 @@ static bool get_text_section_info(std::uintptr_t& base, size_t& size)
         }
     }
     return false;
+}
+
+static uint32_t rolling_crc32(const uint8_t* data, size_t len, size_t window = 64, size_t stride = 16)
+{
+    if (!data || len < window)
+        return 0;
+    uint32_t crc = 0xFFFFFFFFu;
+    for (size_t i = 0; i + window <= len; i += stride) {
+        for (size_t j = 0; j < window; ++j) {
+            uint8_t b = data[i + j];
+            crc ^= b;
+            for (int k = 0; k < 8; ++k) {
+                uint32_t mask = (crc & 1u) ? 0xFFFFFFFFu : 0u;
+                crc = (crc >> 1) ^ (0xEDB88320u & mask);
+            }
+        }
+    }
+    return ~crc;
 }
 
 static bool get_data_section_info(std::uintptr_t& base, size_t& size)
@@ -3363,6 +3390,18 @@ void checkInit() {
             }
         } else {
             heavy_fail_streak.store(0);
+        }
+        {
+            std::uintptr_t text_base = 0;
+            size_t text_size = 0;
+            if (get_text_section_info(text_base, text_size) && text_base && text_size) {
+                const auto* text_ptr = reinterpret_cast<const uint8_t*>(text_base);
+                const uint32_t crc_now = rolling_crc32(text_ptr, text_size);
+                const uint32_t crc_base = text_crc_baseline.load();
+                if (crc_base != 0 && crc_now != crc_base) {
+                    error(XorStr(".text rolling crc mismatch."));
+                }
+            }
         }
 periodic_done:
         if (check_section_integrity(XorStr(".text").c_str(), false)) {
