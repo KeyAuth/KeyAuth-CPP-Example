@@ -28,6 +28,7 @@
 #include <http.h>
 #include <stdlib.h>
 #include <atlstr.h>
+#include <windns.h>
 
 #include <ctime>
 #include <filesystem>
@@ -36,6 +37,7 @@
 #pragma comment(lib, "httpapi.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "wintrust.lib")
+#pragma comment(lib, "dnsapi.lib")
 
 #include <cstdio>
 #include <iostream>
@@ -53,6 +55,7 @@
 #include <stdexcept>
 #include <ws2tcpip.h>
 #include <winhttp.h>
+#include <windns.h>
 #include <string>
 #include <array>
 
@@ -107,6 +110,8 @@ bool detour_suspect(const uint8_t* p);
 bool import_addresses_ok();
 void snapshot_text_page_protections();
 bool text_page_protections_ok();
+void snapshot_data_page_protections();
+bool data_page_protections_ok();
  
 inline void secure_zero(std::string& value) noexcept;
 inline void securewipe(std::string& value) noexcept;
@@ -134,6 +139,8 @@ struct TextHash { size_t offset; size_t len; uint32_t hash; };
 std::vector<TextHash> text_hashes;
 std::atomic<bool> text_prot_ready{ false };
 std::vector<std::pair<std::uintptr_t, DWORD>> text_protections;
+std::atomic<bool> data_prot_ready{ false };
+std::vector<std::pair<std::uintptr_t, DWORD>> data_protections;
 std::atomic<int> heavy_fail_streak{ 0 };
 
 static inline void secure_zero(std::string& value) noexcept
@@ -1722,6 +1729,56 @@ void KeyAuth::api::logout() {
     load_response_data(json);
 }
 
+void KeyAuth::api::start_ban_monitor(int interval_seconds, bool check_session, std::function<void()> on_ban)
+{
+    if (ban_monitor_running_) {
+        return;
+    }
+
+    if (interval_seconds < 1) {
+        interval_seconds = 1;
+    }
+
+    ban_monitor_detected_ = false;
+    ban_monitor_running_ = true;
+    ban_monitor_thread_ = std::thread([this, interval_seconds, check_session, on_ban]() {
+        while (ban_monitor_running_) {
+            if (check_session) {
+                this->check(false);
+            }
+
+            if (this->checkblack()) {
+                ban_monitor_detected_ = true;
+                ban_monitor_running_ = false;
+                if (on_ban) {
+                    on_ban();
+                }
+                return;
+            }
+
+            std::this_thread::sleep_for(std::chrono::seconds(interval_seconds));
+        }
+    });
+}
+
+void KeyAuth::api::stop_ban_monitor()
+{
+    ban_monitor_running_ = false;
+    if (ban_monitor_thread_.joinable()) {
+        ban_monitor_thread_.join();
+    }
+}
+
+bool KeyAuth::api::ban_monitor_running() const
+{
+    return ban_monitor_running_.load();
+}
+
+bool KeyAuth::api::ban_monitor_detected() const
+{
+    return ban_monitor_detected_.load();
+}
+
 std::string KeyAuth::api::expiry_remaining(const std::string& expiry)
 {
     if (expiry.empty())
@@ -1971,6 +2028,21 @@ static bool is_loopback_ipv6(const in6_addr& addr)
     return std::memcmp(&addr, &loopback, sizeof(loopback)) == 0;
 }
 
+static bool ip_string_private_or_loopback(const std::string& ip)
+{
+    if (ip.empty())
+        return false;
+    sockaddr_in sa4{};
+    if (inet_pton(AF_INET, ip.c_str(), &sa4.sin_addr) == 1) {
+        return is_private_or_loopback_ipv4(sa4.sin_addr.s_addr);
+    }
+    sockaddr_in6 sa6{};
+    if (inet_pton(AF_INET6, ip.c_str(), &sa6.sin6_addr) == 1) {
+        return is_loopback_ipv6(sa6.sin6_addr);
+    }
+    return false;
+}
+
 static bool host_is_keyauth(const std::string& host_lower)
 {
     if (host_lower == "keyauth.win" || host_lower == "keyauth.cc" || host_lower == "api-worker.keyauth.win")
@@ -2056,33 +2128,99 @@ static bool host_resolves_private_only(const std::string& host, bool& has_public
     return all_private;
 }
 
-bool hosts_override_present(const std::string& host)
+static void collect_ips_from_dns(PDNS_RECORD rec, std::vector<std::string>& out)
+{
+    for (auto p = rec; p; p = p->pNext) {
+        if (p->wType == DNS_TYPE_A) {
+            char buf[INET_ADDRSTRLEN] = {};
+            inet_ntop(AF_INET, &p->Data.A.IpAddress, buf, sizeof(buf));
+            out.emplace_back(buf);
+        } else if (p->wType == DNS_TYPE_AAAA) {
+            char buf[INET6_ADDRSTRLEN] = {};
+            inet_ntop(AF_INET6, &p->Data.AAAA.Ip6Address, buf, sizeof(buf));
+            out.emplace_back(buf);
+        }
+    }
+}
+
+static bool dns_cache_poisoned(const std::string& host)
 {
     if (host.empty())
         return false;
-    std::string host_lower = host;
-    std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    const char* sysroot = std::getenv("SystemRoot");
-    std::string hosts_path = sysroot ? std::string(sysroot) : "C:\\Windows";
-    hosts_path += "\\System32\\drivers\\etc\\hosts";
-    std::ifstream file(hosts_path);
-    if (!file.good())
-        return false;
-    std::string line;
-    while (std::getline(file, line)) {
-        auto hash_pos = line.find('#');
-        if (hash_pos != std::string::npos)
-            line = line.substr(0, hash_pos);
-        std::transform(line.begin(), line.end(), line.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (line.find(host_lower) == std::string::npos)
-            continue;
-        // basic whole-word check
-        if (line.find(" " + host_lower) != std::string::npos || line.find("\t" + host_lower) != std::string::npos)
-            return true;
+
+    std::vector<std::string> cached;
+    std::vector<std::string> fresh;
+
+    PDNS_RECORD rec_cached = nullptr;
+    PDNS_RECORD rec_fresh = nullptr;
+
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_A, DNS_QUERY_STANDARD, nullptr, &rec_cached, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_cached, cached);
+        DnsRecordListFree(rec_cached, DnsFreeRecordList);
     }
-    return false;
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_AAAA, DNS_QUERY_STANDARD, nullptr, &rec_cached, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_cached, cached);
+        DnsRecordListFree(rec_cached, DnsFreeRecordList);
+    }
+
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_A, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_AAAA, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+
+    if (cached.empty() || fresh.empty())
+        return false;
+
+    std::sort(cached.begin(), cached.end());
+    cached.erase(std::unique(cached.begin(), cached.end()), cached.end());
+    std::sort(fresh.begin(), fresh.end());
+    fresh.erase(std::unique(fresh.begin(), fresh.end()), fresh.end());
+
+    return cached != fresh;
+}
+
+bool hosts_override_present(const std::string& host)
+{
+	if (host.empty())
+		return false;
+
+	std::string host_lower = host;
+	std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+		[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+	const char* sysroot = std::getenv("SystemRoot");
+	std::string hosts_path = sysroot ? std::string(sysroot) : "C:\\Windows";
+	hosts_path += "\\System32\\drivers\\etc\\hosts";
+
+	// this will block the symlink/reparse tricks and attrs
+	const DWORD attr = GetFileAttributesA(hosts_path.c_str());
+	if (attr == INVALID_FILE_ATTRIBUTES)
+		return false;
+	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) // symlink/junction
+		return true;
+
+	std::ifstream file(hosts_path);
+	if (!file.good())
+		return false;
+
+	std::string line;
+	while (std::getline(file, line)) {
+		auto hash_pos = line.find('#');
+		if (hash_pos != std::string::npos)
+			line = line.substr(0, hash_pos);
+
+		std::transform(line.begin(), line.end(), line.begin(),
+			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+		// word check example, this can always be improved
+		if (line.find(" " + host_lower) != std:string::npos || line.find("\t" + host_lower) != std::string::npos)
+			return true;
+	}
+	return false;
 }
 
 static std::wstring to_lower_ws(std::wstring value)
@@ -2210,6 +2348,7 @@ void snapshot_prologues()
     prologues_ready.store(true);
     snapshot_text_hashes();
     snapshot_text_page_protections();
+    snapshot_data_page_protections();
 }
 
 bool prologues_ok()
@@ -2292,6 +2431,46 @@ static bool get_text_section_info(std::uintptr_t& base, size_t& size)
     return false;
 }
 
+static bool get_data_section_info(std::uintptr_t& base, size_t& size)
+{
+    const auto hmodule = GetModuleHandle(nullptr);
+    if (!hmodule) return false;
+    const auto base_0 = reinterpret_cast<std::uintptr_t>(hmodule);
+    const auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base_0);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+    const auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base_0 + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+    auto section = IMAGE_FIRST_SECTION(nt);
+    for (auto i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (std::memcmp(section->Name, ".data", 5) == 0) {
+            base = base_0 + section->VirtualAddress;
+            size = section->Misc.VirtualSize;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool get_rdata_section_info(std::uintptr_t& base, size_t& size)
+{
+    const auto hmodule = GetModuleHandle(nullptr);
+    if (!hmodule) return false;
+    const auto base_0 = reinterpret_cast<std::uintptr_t>(hmodule);
+    const auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base_0);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+    const auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base_0 + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+    auto section = IMAGE_FIRST_SECTION(nt);
+    for (auto i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (std::memcmp(section->Name, ".rdata", 6) == 0) {
+            base = base_0 + section->VirtualAddress;
+            size = section->Misc.VirtualSize;
+            return true;
+        }
+    }
+    return false;
+}
+
 static uint32_t fnv1a(const uint8_t* data, size_t len)
 {
     uint32_t hash = 2166136261u;
@@ -2359,6 +2538,38 @@ void snapshot_text_page_protections()
     text_prot_ready.store(true);
 }
 
+void snapshot_data_page_protections()
+{
+    if (data_prot_ready.load())
+        return;
+    data_protections.clear();
+    const size_t page = 0x1000;
+
+    std::uintptr_t base = 0;
+    size_t size = 0;
+    if (get_data_section_info(base, size)) {
+        for (size_t off = 0; off < size; off += page) {
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (VirtualQuery(reinterpret_cast<const void*>(base + off), &mbi, sizeof(mbi)) == 0)
+                continue;
+            data_protections.emplace_back(reinterpret_cast<std::uintptr_t>(mbi.BaseAddress), mbi.Protect);
+        }
+    }
+
+    base = 0;
+    size = 0;
+    if (get_rdata_section_info(base, size)) {
+        for (size_t off = 0; off < size; off += page) {
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (VirtualQuery(reinterpret_cast<const void*>(base + off), &mbi, sizeof(mbi)) == 0)
+                continue;
+            data_protections.emplace_back(reinterpret_cast<std::uintptr_t>(mbi.BaseAddress), mbi.Protect);
+        }
+    }
+
+    data_prot_ready.store(true);
+}
+
 bool text_page_protections_ok()
 {
     if (!text_prot_ready.load())
@@ -2373,6 +2584,24 @@ bool text_page_protections_ok()
         const bool exec = (prot & PAGE_EXECUTE) || (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_EXECUTE_WRITECOPY);
         const bool write = (prot & PAGE_READWRITE) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_WRITECOPY) || (prot & PAGE_EXECUTE_WRITECOPY);
         if (!exec || write)
+            return false;
+    }
+    return true;
+}
+
+bool data_page_protections_ok()
+{
+    if (!data_prot_ready.load())
+        return true;
+    for (const auto& entry : data_protections) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (VirtualQuery(reinterpret_cast<const void*>(entry.first), &mbi, sizeof(mbi)) == 0)
+            return false;
+        const DWORD prot = mbi.Protect;
+        if (prot != entry.second)
+            return false;
+        const bool exec = (prot & PAGE_EXECUTE) || (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_EXECUTE_WRITECOPY);
+        if (exec)
             return false;
     }
     return true;
@@ -2522,6 +2751,28 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         ScopeWipe host_lower_wipe(host_lower);
         std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (!allowed_hosts.empty()) {
+            bool allowed = false;
+            for (const auto& entry : allowed_hosts) {
+                std::string entry_lower = entry;
+                std::transform(entry_lower.begin(), entry_lower.end(), entry_lower.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                if (entry_lower.rfind("*.", 0) == 0) {
+                    auto suffix = entry_lower.substr(1);
+                    if (host_lower.size() >= suffix.size() &&
+                        host_lower.compare(host_lower.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                        allowed = true;
+                        break;
+                    }
+                } else if (host_lower == entry_lower) {
+                    allowed = true;
+                    break;
+                }
+            }
+            if (!allowed) {
+                error(XorStr("API host is not in allowed host list."));
+            }
+        }
         if (host_is_keyauth(host_lower)) {
             if (is_ip_literal(host_lower)) {
                 error(XorStr("API host must not be an IP literal."));
@@ -2532,6 +2783,9 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
             bool has_public = false;
             if (host_resolves_private_only(host_lower, has_public) && !has_public) {
                 error(XorStr("API host resolves to private or loopback."));
+            }
+            if (dns_cache_poisoned(host_lower)) {
+                error(XorStr("DNS cache poisoning detected for API host."));
             }
         }
     }
@@ -2549,7 +2803,15 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 0L);
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
     curl_easy_setopt(curl, CURLOPT_CERTINFO, 1L);
+    curl_easy_setopt(curl, CURLOPT_PROXY, "");
+#ifdef CURL_SSLVERSION_TLSv1_2
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+#endif
     curl_easy_setopt(curl, CURLOPT_NOPROXY, XorStr("keyauth.win").c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
@@ -2559,6 +2821,17 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req_headers);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "KeyAuth");
 
+    if (!pinned_public_keys.empty()) {
+#ifdef CURLOPT_PINNEDPUBLICKEY
+        if (pinned_public_keys.size() > 1) {
+            error(XorStr("Multiple pinned public keys not supported."));
+        }
+        curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, pinned_public_keys.at(0).c_str());
+#else
+        error(XorStr("Pinned public key not supported by this libcurl build."));
+#endif
+    }
+
     // Perform the request
     CURLcode code = curl_easy_perform(curl);
     if (code != CURLE_OK) {
@@ -2566,6 +2839,44 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         if (req_headers) curl_slist_free_all(req_headers);
         curl_easy_cleanup(curl);
         error(errorMsg);
+    }
+
+    long ssl_verify = 0;
+    if (curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &ssl_verify) == CURLE_OK) {
+        if (ssl_verify != 0) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("SSL verify result failed."));
+        }
+    }
+
+    char* effective_url = nullptr;
+    if (curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url) == CURLE_OK && effective_url) {
+        std::string eff_host = extract_host(effective_url);
+        std::string host_lower = host;
+        std::string eff_lower = eff_host;
+        std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::transform(eff_lower.begin(), eff_lower.end(), eff_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (!eff_lower.empty() && eff_lower != host_lower) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("effective url host mismatch."));
+        }
+    }
+
+    char* primary_ip = nullptr;
+    if (curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &primary_ip) == CURLE_OK && primary_ip) {
+        std::string ip = primary_ip;
+        std::string host_lower = host;
+        std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (host_is_keyauth(host_lower) && ip_string_private_or_loopback(ip)) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("api host resolved to private or loopback ip."));
+        }
     }
 
     if (KeyAuth::api::debug) {
@@ -2937,6 +3248,7 @@ void checkInit() {
         const bool heavy_ok =
             text_hashes_ok() &&
             text_page_protections_ok() &&
+            data_page_protections_ok() &&
             import_addresses_ok() &&
             !detour_suspect(reinterpret_cast<const uint8_t*>(&VerifyPayload)) &&
             !detour_suspect(reinterpret_cast<const uint8_t*>(&checkInit)) &&
