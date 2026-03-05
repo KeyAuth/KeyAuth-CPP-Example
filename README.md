@@ -114,6 +114,20 @@ if (KeyAuthApp.checkblack()) {
 }
 ```
 
+## **Live ban monitor (threaded)**
+
+Optional background check that polls every 45 seconds. Always stop it before exiting.
+
+```cpp
+KeyAuthApp.start_ban_monitor(45, false, [] {
+    std::cout << "Blacklisted, exiting..." << std::endl;
+    exit(0);
+});
+
+// later, before exit
+KeyAuthApp.stop_ban_monitor();
+```
+
 ## **Login with username/password**
 
 ```cpp
@@ -367,3 +381,49 @@ if (KeyAuthApp.response.success)
         std::cout << KeyAuthApp.response.message << std::endl;
 }
 ```
+
+## SDK Dependencies
+This repo does not include the KeyAuth C++ SDK binaries/headers. Populate the following folders from the KeyAuth 1.3 SDK repo:
+- `x64/lib/`
+- `x86/lib/`
+
+You can copy the `lib/` folder contents from `keyauth-cpp-library-1.3API` into each architecture folder.
+
+## Lockout & Delay Helpers (KeyAuth 1.3 SDK)
+The example now wires the built-in helpers from the KeyAuth 1.3 SDK for safer rate limiting and consistent delays.
+
+Typical usage:
+```cpp
+if (KeyAuthApp.lockout_active()) {
+    std::cout << "Try again in " << KeyAuthApp.lockout_remaining_ms() << " ms";
+    KeyAuthApp.close_delay();
+    return 0;
+}
+
+// on init failure
+KeyAuthApp.init_fail_delay();
+
+// on bad input
+KeyAuthApp.bad_input_delay();
+
+// on failed auth
+KeyAuthApp.record_login_fail();
+
+// on successful auth
+KeyAuthApp.reset_lockout();
+
+// before exit
+KeyAuthApp.close_delay();
+```
+
+## Keeping Example + Library In Sync
+This repo is kept in sync with `ELF-Nigel/keyauth-cpp-library-1.3API`.
+
+Local sync:
+```bash
+./scripts/sync_lib.sh git@github.com:ELF-Nigel/keyauth-cpp-library-1.3API.git
+```
+
+CI sync:
+- The workflow checks out the library repo and copies it into `x86/lib` and `x64/lib` before building.
+- Add a repo secret named `KEYAUTH_CPP_LIB_DEPLOY_KEY` with the **library repo** deploy key (read/write).
