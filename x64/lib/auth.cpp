@@ -153,7 +153,17 @@ std::vector<std::pair<std::uintptr_t, DWORD>> text_protections;
 std::atomic<bool> data_prot_ready{ false };
 std::vector<std::pair<std::uintptr_t, DWORD>> data_protections;
 std::atomic<int> heavy_fail_streak{ 0 };
+static const char* kCriticalImports[] = {
+    "WinVerifyTrust",
+    "WinHttpGetDefaultProxyConfiguration",
+    "WinHttpSendRequest",
+    "WinHttpReceiveResponse",
+    "CryptVerifyMessageSignature",
+};
 static std::atomic<uint32_t> text_crc_baseline{ 0 };
+static std::array<uint8_t, 16> checkinit_prologue{};
+static std::atomic<bool> checkinit_ready{ false };
+static std::atomic<bool> watchdog_started{ false };
 
 static inline void secure_zero(std::string& value) noexcept
 {
@@ -195,8 +205,14 @@ void KeyAuth::api::init()
     }
     std::thread(runChecks).detach();
     snapshot_prologues();
+    snapshot_checkinit();
     seed = generate_random_number();
     std::atexit([]() { cleanUpSeedData(seed); });
+
+    if (!secrutiy_watchdog.exchange(true)) {
+     std::thread(security_watchdog).detach();
+    }
+
     CreateThread(0, 0, (LPTHREAD_START_ROUTINE)modify, 0, 0, 0);
 
     if (ownerid.length() != 10)
@@ -1887,6 +1903,16 @@ int VerifyPayload(std::string signature, std::string timestamp, std::string body
         error(XorStr("function prologue check failed, possible inline hook detected."));
     }
     integrity_check();
+    if (timestamp.size() < 10 || timestamp.size() > 13) {
+        MessageBoxA(0, "Signature verification failed (timestamp length)", "KeyAuth", MB_ICONERROR);
+        exit(2);
+    }
+    for (char c : timestamp) {
+        if (c < '0' || c > '9') {
+            MessageBoxA(0, "Signature verification failed (timestamp format)", "KeyAuth", MB_ICONERROR);
+            exit(2);
+        }
+    }
     long long unix_timestamp = 0;
     try {
         unix_timestamp = std::stoll(timestamp);
@@ -1920,6 +1946,10 @@ int VerifyPayload(std::string signature, std::string timestamp, std::string body
     unsigned char sig[64];
     unsigned char pk[32];
 
+    if (signature.size() != 128) {
+        MessageBoxA(0, "Signature verification failed (sig length)", "KeyAuth", MB_ICONERROR);
+        exit(5);
+    }
     if (sodium_hex2bin(sig, sizeof(sig), signature.c_str(), signature.length(), NULL, NULL, NULL) != 0) {
         std::cerr << "[ERROR] Failed to parse signature hex.\n";
         MessageBoxA(0, "Signature verification failed (invalid signature format)", "KeyAuth", MB_ICONERROR);
@@ -2432,6 +2462,23 @@ void snapshot_prologues()
     }
 }
 
+static void snapshot_checkinit()
+{
+    if (checkinit_ready.load())
+        return;
+    const auto p = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(&checkInit));
+    std::memcpy(checkinit_prologue.data(), p, checkinit_prologue.size());
+    checkinit_ready.store(true);
+}
+
+static bool checkinit_ok()
+{
+    if (!checkinit_ready.load())
+        return true;
+    const auto p = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(&checkInit));
+    return std::memcmp(checkinit_prologue.data(), p, checkinit_prologue.size()) == 0;
+}
+
 bool prologues_ok()
 {
     if (!prologues_ready.load())
@@ -2736,6 +2783,156 @@ static bool addr_in_module(const void* addr, const wchar_t* module_name)
     return addr >= base && addr < end;
 }
 
+static bool addr_in_module_handle(const void* addr, HMODULE mod)
+{
+    if (!mod)
+        return false;
+    MODULEINFO mi{};
+    if (!GetModuleInformation(GetCurrentProcess(), mod, &mi, sizeof(mi)))
+        return false;
+    const auto base = reinterpret_cast<const uint8_t*>(mi.lpBaseOfDll);
+    const auto end = base + mi.SizeOfImage;
+    return addr >= base && addr < end;
+}
+
+static bool get_export_address(HMODULE mod, const char* name, void*& out_addr)
+{
+    out_addr = nullptr;
+    if (!mod || !name)
+        return false;
+    auto base = reinterpret_cast<uint8_t*>(mod);
+    auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+    auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    auto& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress)
+        return false;
+
+    auto exp = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
+    auto names = reinterpret_cast<DWORD*>(base + exp->AddressOfNames);
+    auto funcs = reinterpret_cast<DWORD*>(base + exp->AddressOfFunctions);
+    auto ords = reinterpret_cast<WORD*>(base + exp->AddressOfNameOrdinals);
+
+    for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
+        const char* n = reinterpret_cast<const char*>(base + names[i]);
+        if (_stricmp(n, name) == 0) {
+            WORD ord = ords[i];
+            DWORD rva = funcs[ord];
+            out_addr = base + rva;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool export_mismatch(const char* dll, const char* func)
+{
+    HMODULE mod = GetModuleHandleA(dll);
+    if (!mod)
+        return false;
+
+    void* by_export = nullptr;
+    if (!get_export_address(mod, func, by_export))
+        return false;
+
+    void* by_proc = GetProcAddress(mod, func);
+    if (!by_proc)
+        return false;
+
+    return by_export != by_proc;
+}
+
+static bool hotpatch_prologue_present(const void* fn)
+{
+    if (!fn)
+        return false;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+    if (p[0] == 0x8B && p[1] == 0xFF) return true; // mov edi, edi
+    if (p[0] == 0x90 && p[1] == 0x90 && p[2] == 0x90 && p[3] == 0x90 && p[4] == 0x90) return true;
+    return false;
+}
+
+static bool ntdll_syscall_stub_tampered(const char* name)
+{
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (!ntdll || !name)
+        return false;
+    void* fn = GetProcAddress(ntdll, name);
+    if (!fn)
+        return false;
+
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+#ifdef _WIN64
+    if (!(p[0] == 0x4C && p[1] == 0x8B && p[2] == 0xD1)) return true;
+    if (!(p[3] == 0xB8)) return true;
+    if (!(p[8] == 0x0F && p[9] == 0x05)) return true;
+    if (!(p[10] == 0xC3)) return true;
+#endif
+    return false;
+}
+
+static bool nearby_trampoline_present(const void* fn)
+{
+    if (!fn)
+        return false;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+    for (int i = -32; i <= 32; ++i) {
+        const uint8_t* q = p + i;
+        if (q[0] == 0xE9) return true; // jmp rel32
+        if (q[0] == 0xFF && q[1] == 0x25) return true; // jmp [rip+imm32]
+    }
+    return false;
+}
+
+static bool iat_hook_suspect(const char* dll_name, const char* func_name)
+{
+    HMODULE mod = GetModuleHandleA(dll_name);
+    if (!mod || !func_name)
+        return false;
+    void* addr = GetProcAddress(mod, func_name);
+    if (!addr)
+        return false;
+    return !addr_in_module_handle(addr, mod);
+}
+
+static bool get_export_address(HMODULE mod, const char* name, void*& out_addr)
+{
+    out_addr = nullptr;
+    if (!mod || !name)
+        return false;
+    auto base = reinterpret_cast<uint8_t*>(mod);
+    auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+    auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    auto& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress)
+        return false;
+
+    auto exp = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
+    auto names = reinterpret_cast<DWORD*>(base + exp->AddressOfNames);
+    auto funcs = reinterpret_cast<DWORD*>(base + exp->AddressOfFunctions);
+    auto ords = reinterpret_cast<WORD*>(base + exp->AddressOfNameOrdinals);
+
+    for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
+        const char* n = reinterpret_cast<const char*>(base + names[i]);
+        if (_stricmp(n, name) == 0) {
+            WORD ord = ords[i];
+            DWORD rva = funcs[ord];
+            out_addr = base + rva;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool import_addresses_ok()
 {
     // wintrust functions should resolve inside wintrust.dll when loaded
@@ -2792,6 +2989,42 @@ static bool iat_get_import_address(HMODULE module, const char* import_name, void
     return true;
 }
 
+static bool iat_points_outside_module(HMODULE module, const char* func_name)
+{
+    if (!module || !func_name)
+        return false;
+
+    void* addr = nullptr;
+    bool found = false;
+    if (!iat_get_import_address(module, func_name, addr, found) || !found)
+        return false;
+
+    HMODULE owner = nullptr;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCSTR>(addr), &owner)) {
+        return true;
+    }
+
+    if (!addr_in_module_handle(addr, owner))
+        return true;
+
+    return false;
+}
+
+static bool iat_integrity_ok()
+{
+    HMODULE self = GetModuleHandle(nullptr);
+    if (!self)
+        return false;
+
+    for (const char* name : kCriticalImports) {
+        if (iat_points_outside_module(self, name)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void heartbeat_thread(KeyAuth::api* instance)
 {
     std::random_device rd;
@@ -2813,6 +3046,17 @@ void start_heartbeat(KeyAuth::api* instance)
     if (heartbeat_started.exchange(true))
         return;
     std::thread(heartbeat_thread, instance).detach();
+}
+
+static void security_watchdog()
+{
+    while (true) {
+        Sleep(15000);
+        if (!checkinit_ok()) {
+            error(XorStr("security watchdog detected tamper."))
+        }
+        checkInit();
+    }
 }
 
 void KeyAuth::api::setDebug(bool value) {
@@ -2949,6 +3193,12 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         }
     }
 
+    if (signature.empty() || signatureTimestamp.empty()) {
+        if (req_headers) curl_slist_free_all(req_headers);
+        curl_easy_cleanup(curl);
+        error(XorStr("missing signature headers."));
+    }
+
     char* effective_url = nullptr;
     if (curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url) == CURLE_OK && effective_url) {
         if (!is_https_url(effective_url)) {
@@ -3005,6 +3255,11 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         curl_easy_cleanup(curl);
         error(XorStr("response too large."));
     }
+    if (to_return.size() < 32) {
+        if (req_headers) curl_slist_free_all(req_headers);
+        curl_easy_cleanup(curl);
+        error(XorStr("response too small."));
+    }
     if (req_headers) curl_slist_free_all(req_headers);
     curl_easy_cleanup(curl);
     secure_zero(data);
@@ -3019,7 +3274,7 @@ void error(std::string message) {
     LI_FN(__fastfail)(0);
 }
 // code submitted in pull request from https://github.com/Roblox932
-auto check_section_integrity( const char *section_name, bool fix = false ) -> bool
+integrity( const char *section_name, bool fix = false ) -> bool
 {
     const auto map_file = []( HMODULE hmodule ) -> std::tuple<std::uintptr_t, HANDLE>
     {
@@ -3345,10 +3600,78 @@ void KeyAuth::api::debugInfo(std::string data, std::string url, std::string resp
     logfile.close();
 }
 
+static bool compare_text_to_disk()
+{
+    wchar_t filename[MAX_PATH] = {};
+    DWORD size = MAX_PATH;
+    if (!QueryFullProcessImageName(GetCurrentProcess(), 0, filename, &size))
+        return false;
+
+    HANDLE file = CreateFileW(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+
+    HANDLE map = CreateFileMappingW(file, 0, PAGE_READONLY, 0, 0, 0);
+    if (!map) {
+        CloseHandle(file);
+        return false;
+    }
+
+    void* mapped = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
+    if (!mapped) {
+        CloseHandle(map);
+        CloseHandle(file);
+        return false;
+    }
+
+    auto base_mem = reinterpret_cast<std::uintptr_t>(GetModuleHandle(nullptr));
+    auto base_disk = reinterpret_cast<std::uintptr_t>(mapped);
+
+    auto dos_mem = reinterpret_cast<IMAGE_DOS_HEADER*>(base_mem);
+    auto dos_disk = reinterpret_cast<IMAGE_DOS_HEADER*>(base_disk);
+
+    if (dos_mem->e_magic != IMAGE_DOS_SIGNATURE || dos_disk->e_magic != IMAGE_DOS_SIGNATURE) {
+        UnmapViewOfFile(mapped);
+        CloseHandle(map);
+        CloseHandle(file);
+        return false;
+    }
+
+    auto nt_mem = reinterpret_cast<IMAGE_NT_HEADERS*>(base_mem + dos_mem->e_lfanew);
+    auto nt_disk = reinterpret_cast<IMAGE_NT_HEADERS*>(base_disk + dos_disk->e_lfanew);
+
+    auto sec_mem = IMAGE_FIRST_SECTION(nt_mem);
+    auto sec_disk = IMAGE_FIRST_SECTION(nt_disk);
+
+    for (unsigned i = 0; i < nt_mem->FileHeader.NumberOfSections; ++i, ++sec_mem, ++sec_disk) {
+        if (std::memcmp(sec_mem->Name, ".text", 5) == 0) {
+            const size_t size_text = sec_mem->Misc.VirtualSize;
+            const uint8_t* mem_ptr = reinterpret_cast<const uint8_t*>(base_mem + sec_mem->VirtualAddress);
+            const uint8_t* disk_ptr = reinterpret_cast<const uint8_t*>(base_disk + sec_disk->PointerToRawData);
+            bool same = (std::memcmp(mem_ptr, disk_ptr, size_text) == 0);
+
+            UnmapViewOfFile(mapped);
+            CloseHandle(map);
+            CloseHandle(file);
+            return same;
+        }
+    }
+
+    UnmapViewOfFile(mapped);
+    CloseHandle(map);
+    CloseHandle(file);
+    return false;
+}
+
 void checkInit() {
     if (!initialized) {
         error(XorStr("You need to run the KeyAuthApp.init(); function before any other KeyAuth functions"));
     }
+
+    if (!checkinit_ok()) {
+        error(XorStr("checkInit prologue modified."));
+    }
+
     // usage: call init() once at startup; checks run automatically after that -nigel
     const auto now = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
@@ -3403,6 +3726,44 @@ void checkInit() {
                 }
             }
         }
+
+        if (!compare_text_to_disk()) {
+            error(XorStr("memory .text mismatch vs disk image."));
+        }
+
+        if (export_mismatch("KERNEL32.dll", "LoadLibraryA") ||
+            export_mismatch("KERNEL32.dll", "GetProcAddress") ||
+            export_mismatch("WINHTTP.dll", "WinHttpGetDefaultProxyConfiguration") ||
+            export_mismatch("WINTRUST.dll", "WinVerifyTrust")) {
+            error(XorStr("export mismatch detected."));
+        }
+
+        if (hotpatch_prologue_present(&WinVerifyTrust) ||
+            hotpatch_prologue_present(&WinHttpGetDefaultProxyConfiguration)) {
+            error(XorStr("hotpatch prologue detected."));
+        }
+
+        if (ntdll_syscall_stub_tampered("NtQueryInformationProcess") ||
+            ntdll_syscall_stub_tampered("NtProtectVirtualMemory")) {
+            error(XorStr("ntdll syscall stub tampered."));
+        }
+
+        if (nearby_trampoline_present(&curl_easy_perform) ||
+            nearby_trampoline_present(&curl_easy_setopt)) {
+            error(XorStr("trampoline near api detected."));
+        }
+
+        if (iat_hook_suspect("KERNEL32.dll", "LoadLibraryA") ||
+            iat_hook_suspect("KERNEL32.dll", "GetProcAddress") ||
+            iat_hook_suspect("WINHTTP.dll", "WinHttpGetDefaultProxyConfiguration") ||
+            iat_hook_suspect("WINTRUST.dll", "WinVerifyTrust")) {
+            error(XorStr("iat hook detected."));
+        }
+
+        if (!iat_integrity_ok()) {
+            error(XorStr("iat integrity check failed."));
+        }
+
 periodic_done:
         if (check_section_integrity(XorStr(".text").c_str(), false)) {
             const int streak = integrity_fail_streak.fetch_add(1) + 1;
@@ -3467,12 +3828,10 @@ DWORD64 FindPattern(BYTE* bMask, const char* szMask)
 DWORD64 Function_Address;
 void modify()
 {
-    // code submitted in pull request from https://github.com/Roblox932
     check_section_integrity( XorStr( ".text" ).c_str( ), true );
 
     while (true)
     {
-        // new code by https://github.com/LiamG53
         #if KEYAUTH_HAVE_KILLEMU
         protection::init();
         #endif
