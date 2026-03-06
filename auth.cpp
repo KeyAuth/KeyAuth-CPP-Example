@@ -3190,8 +3190,11 @@ static bool ntdll_syscall_stub_tampered(const char* name)
 
     const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
 #ifdef _WIN64
-    // Allow optional ENDBR64 and padding bytes to reduce false positives on CET/hotpatch builds.
+    // Reduce false positives: only flag obvious hooks/trampolines or missing syscall.
     const uint8_t* q = p;
+    if (q[0] == 0xE9 || (q[0] == 0xFF && q[1] == 0x25)) {
+        return true; // direct jmp / jmp [rip+imm32]
+    }
     // Skip ENDBR64 (f3 0f 1e fa)
     if (q[0] == 0xF3 && q[1] == 0x0F && q[2] == 0x1E && q[3] == 0xFA) {
         q += 4;
@@ -3200,10 +3203,17 @@ static bool ntdll_syscall_stub_tampered(const char* name)
     for (int i = 0; i < 8 && (*q == 0xCC || *q == 0x90); ++i) {
         q++;
     }
-    if (!(q[0] == 0x4C && q[1] == 0x8B && q[2] == 0xD1)) return true; // mov r10, rcx
-    if (!(q[3] == 0xB8)) return true; // mov eax, imm32
-    if (!(q[8] == 0x0F && q[9] == 0x05)) return true; // syscall
-    if (!(q[10] == 0xC3)) return true; // ret
+    // Scan first 32 bytes for syscall; if absent, suspect hook.
+    bool has_syscall = false;
+    for (int i = 0; i < 32; ++i) {
+        if (q[i] == 0x0F && q[i + 1] == 0x05) {
+            has_syscall = true;
+            break;
+        }
+    }
+    if (!has_syscall) {
+        return true;
+    }
 #endif
     return false;
 }
