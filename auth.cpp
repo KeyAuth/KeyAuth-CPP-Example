@@ -3190,10 +3190,20 @@ static bool ntdll_syscall_stub_tampered(const char* name)
 
     const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
 #ifdef _WIN64
-    if (!(p[0] == 0x4C && p[1] == 0x8B && p[2] == 0xD1)) return true;
-    if (!(p[3] == 0xB8)) return true;
-    if (!(p[8] == 0x0F && p[9] == 0x05)) return true;
-    if (!(p[10] == 0xC3)) return true;
+    // Allow optional ENDBR64 and padding bytes to reduce false positives on CET/hotpatch builds.
+    const uint8_t* q = p;
+    // Skip ENDBR64 (f3 0f 1e fa)
+    if (q[0] == 0xF3 && q[1] == 0x0F && q[2] == 0x1E && q[3] == 0xFA) {
+        q += 4;
+    }
+    // Skip common padding (int3/nop)
+    for (int i = 0; i < 8 && (*q == 0xCC || *q == 0x90); ++i) {
+        q++;
+    }
+    if (!(q[0] == 0x4C && q[1] == 0x8B && q[2] == 0xD1)) return true; // mov r10, rcx
+    if (!(q[3] == 0xB8)) return true; // mov eax, imm32
+    if (!(q[8] == 0x0F && q[9] == 0x05)) return true; // syscall
+    if (!(q[10] == 0xC3)) return true; // ret
 #endif
     return false;
 }
@@ -4095,14 +4105,10 @@ void checkInit() {
             error(XorStr("hotpatch prologue detected."));
         }
 
-        // Soft-disable ntdll syscall stub check to avoid false positives on some Windows setups.
-        // If you want strict behavior, re-enable this block. -nigel
-        /*
         if (ntdll_syscall_stub_tampered("NtQueryInformationProcess") ||
             ntdll_syscall_stub_tampered("NtProtectVirtualMemory")) {
             error(XorStr("ntdll syscall stub tampered."));
         }
-        */
 
         if (nearby_trampoline_present(&curl_easy_perform) ||
             nearby_trampoline_present(&curl_easy_setopt)) {
