@@ -4095,10 +4095,14 @@ void checkInit() {
             error(XorStr("hotpatch prologue detected."));
         }
 
+        // Soft-disable ntdll syscall stub check to avoid false positives on some Windows setups.
+        // If you want strict behavior, re-enable this block. -nigel
+        /*
         if (ntdll_syscall_stub_tampered("NtQueryInformationProcess") ||
             ntdll_syscall_stub_tampered("NtProtectVirtualMemory")) {
             error(XorStr("ntdll syscall stub tampered."));
         }
+        */
 
         if (nearby_trampoline_present(&curl_easy_perform) ||
             nearby_trampoline_present(&curl_easy_setopt)) {
