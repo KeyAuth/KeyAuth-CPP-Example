@@ -28,6 +28,7 @@
 #include <http.h>
 #include <stdlib.h>
 #include <atlstr.h>
+#include <windns.h>
 
 #include <ctime>
 #include <filesystem>
@@ -36,6 +37,7 @@
 #pragma comment(lib, "httpapi.lib")
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "wintrust.lib")
+#pragma comment(lib, "dnsapi.lib")
 
 #include <cstdio>
 #include <iostream>
@@ -53,6 +55,7 @@
 #include <stdexcept>
 #include <ws2tcpip.h>
 #include <winhttp.h>
+#include <windns.h>
 #include <string>
 #include <array>
 
@@ -66,8 +69,19 @@
 #include <cctype>
 #include <algorithm>
 
+#if __has_include("Security.hpp")
 #include "Security.hpp"
+#define KEYAUTH_HAVE_SECURITY 1
+#else
+#define KEYAUTH_HAVE_SECURITY 0
+#endif
+
+#if __has_include("killEmulator.hpp")
 #include "killEmulator.hpp"
+#define KEYAUTH_HAVE_KILLEMU 1
+#else
+#define KEYAUTH_HAVE_KILLEMU 0
+#endif
 #include <lazy_importer.hpp>
 #include <QRCode/qrcode.hpp>
 #include <QRCode/qr.png.h>
@@ -107,6 +121,8 @@ bool detour_suspect(const uint8_t* p);
 bool import_addresses_ok();
 void snapshot_text_page_protections();
 bool text_page_protections_ok();
+void snapshot_data_page_protections();
+bool data_page_protections_ok();
  
 inline void secure_zero(std::string& value) noexcept;
 inline void securewipe(std::string& value) noexcept;
@@ -134,7 +150,20 @@ struct TextHash { size_t offset; size_t len; uint32_t hash; };
 std::vector<TextHash> text_hashes;
 std::atomic<bool> text_prot_ready{ false };
 std::vector<std::pair<std::uintptr_t, DWORD>> text_protections;
+std::atomic<bool> data_prot_ready{ false };
+std::vector<std::pair<std::uintptr_t, DWORD>> data_protections;
 std::atomic<int> heavy_fail_streak{ 0 };
+static const char* kCriticalImports[] = {
+    "WinVerifyTrust",
+    "WinHttpGetDefaultProxyConfiguration",
+    "WinHttpSendRequest",
+    "WinHttpReceiveResponse",
+    "CryptVerifyMessageSignature",
+};
+static std::atomic<uint32_t> text_crc_baseline{ 0 };
+static std::array<uint8_t, 16> checkinit_prologue{};
+static std::atomic<bool> checkinit_ready{ false };
+static std::atomic<bool> watchdog_started{ false };
 
 static inline void secure_zero(std::string& value) noexcept
 {
@@ -161,6 +190,9 @@ void KeyAuth::api::init()
     // harden dll search order to reduce current-dir hijacks
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
     SetDllDirectoryW(L"");
+#if KEYAUTH_HAVE_SECURITY
+    LockMemAccess();
+#endif
     {
         wchar_t exe_path[MAX_PATH] = {};
         GetModuleFileNameW(nullptr, exe_path, MAX_PATH);
@@ -173,8 +205,14 @@ void KeyAuth::api::init()
     }
     std::thread(runChecks).detach();
     snapshot_prologues();
+    snapshot_checkinit();
     seed = generate_random_number();
     std::atexit([]() { cleanUpSeedData(seed); });
+
+    if (!secrutiy_watchdog.exchange(true)) {
+     std::thread(security_watchdog).detach();
+    }
+
     CreateThread(0, 0, (LPTHREAD_START_ROUTINE)modify, 0, 0, 0);
 
     if (ownerid.length() != 10)
@@ -1722,6 +1760,56 @@ void KeyAuth::api::logout() {
     load_response_data(json);
 }
 
+void KeyAuth::api::start_ban_monitor(int interval_seconds, bool check_session, std::function<void()> on_ban)
+{
+    if (ban_monitor_running_) {
+        return;
+    }
+
+    if (interval_seconds < 1) {
+        interval_seconds = 1;
+    }
+
+    ban_monitor_detected_ = false;
+    ban_monitor_running_ = true;
+    ban_monitor_thread_ = std::thread([this, interval_seconds, check_session, on_ban]() {
+        while (ban_monitor_running_) {
+            if (check_session) {
+                this->check(false);
+            }
+
+            if (this->checkblack()) {
+                ban_monitor_detected_ = true;
+                ban_monitor_running_ = false;
+                if (on_ban) {
+                    on_ban();
+                }
+                return;
+            }
+
+            std::this_thread::sleep_for(std::chrono::seconds(interval_seconds));
+        }
+    });
+}
+
+void KeyAuth::api::stop_ban_monitor()
+{
+    ban_monitor_running_ = false;
+    if (ban_monitor_thread_.joinable()) {
+        ban_monitor_thread_.join();
+    }
+}
+
+bool KeyAuth::api::ban_monitor_running() const
+{
+    return ban_monitor_running_.load();
+}
+
+bool KeyAuth::api::ban_monitor_detected() const
+{
+    return ban_monitor_detected_.load();
+}
+
 std::string KeyAuth::api::expiry_remaining(const std::string& expiry)
 {
     if (expiry.empty())
@@ -1815,6 +1903,16 @@ int VerifyPayload(std::string signature, std::string timestamp, std::string body
         error(XorStr("function prologue check failed, possible inline hook detected."));
     }
     integrity_check();
+    if (timestamp.size() < 10 || timestamp.size() > 13) {
+        MessageBoxA(0, "Signature verification failed (timestamp length)", "KeyAuth", MB_ICONERROR);
+        exit(2);
+    }
+    for (char c : timestamp) {
+        if (c < '0' || c > '9') {
+            MessageBoxA(0, "Signature verification failed (timestamp format)", "KeyAuth", MB_ICONERROR);
+            exit(2);
+        }
+    }
     long long unix_timestamp = 0;
     try {
         unix_timestamp = std::stoll(timestamp);
@@ -1848,6 +1946,10 @@ int VerifyPayload(std::string signature, std::string timestamp, std::string body
     unsigned char sig[64];
     unsigned char pk[32];
 
+    if (signature.size() != 128) {
+        MessageBoxA(0, "Signature verification failed (sig length)", "KeyAuth", MB_ICONERROR);
+        exit(5);
+    }
     if (sodium_hex2bin(sig, sizeof(sig), signature.c_str(), signature.length(), NULL, NULL, NULL) != 0) {
         std::cerr << "[ERROR] Failed to parse signature hex.\n";
         MessageBoxA(0, "Signature verification failed (invalid signature format)", "KeyAuth", MB_ICONERROR);
@@ -1957,11 +2059,15 @@ static bool is_private_or_loopback_ipv4(uint32_t addr_net_order)
     if (b1 == 127) return true;
     if (b1 == 0) return true;
     if (b1 == 169 && b2 == 254) return true;
+    if (b1 == 100 && (b2 >= 64 && b2 <= 127)) return true; // 100.64.0.0/10
     if (b1 == 192 && b2 == 168) return true;
+    if (b1 == 192 && b2 == 0) return true; // 192.0.0.0/24
+    if (b1 == 198 && (b2 == 18 || b2 == 19)) return true; // 198.18.0.0/15
     if (b1 == 172) {
         const uint8_t b3 = static_cast<uint8_t>((a >> 8) & 0xFF);
         if (b3 >= 16 && b3 <= 31) return true;
     }
+    if (b1 >= 224) return true; // multicast/reserved
     return false;
 }
 
@@ -1969,6 +2075,36 @@ static bool is_loopback_ipv6(const in6_addr& addr)
 {
     static const in6_addr loopback = IN6ADDR_LOOPBACK_INIT;
     return std::memcmp(&addr, &loopback, sizeof(loopback)) == 0;
+}
+
+static bool is_private_or_loopback_ipv6(const in6_addr& addr)
+{
+    if (is_loopback_ipv6(addr))
+        return true;
+    const uint8_t b0 = addr.u.Byte[0];
+    const uint8_t b1 = addr.u.Byte[1];
+    if ((b0 & 0xFE) == 0xFC) // fc00::/7 unique-local
+        return true;
+    if (b0 == 0xFE && (b1 & 0xC0) == 0x80) // fe80::/10 link-local
+        return true;
+    if ((b0 & 0xFF) == 0xFF) // multicast ff00::/8
+        return true;
+    return false;
+}
+
+static bool ip_string_private_or_loopback(const std::string& ip)
+{
+    if (ip.empty())
+        return false;
+    sockaddr_in sa4{};
+    if (inet_pton(AF_INET, ip.c_str(), &sa4.sin_addr) == 1) {
+        return is_private_or_loopback_ipv4(sa4.sin_addr.s_addr);
+    }
+    sockaddr_in6 sa6{};
+    if (inet_pton(AF_INET6, ip.c_str(), &sa6.sin6_addr) == 1) {
+        return is_private_or_loopback_ipv6(sa6.sin6_addr);
+    }
+    return false;
 }
 
 static bool host_is_keyauth(const std::string& host_lower)
@@ -2021,6 +2157,22 @@ static bool winhttp_proxy_set()
     return set;
 }
 
+static bool winhttp_proxy_auto_set()
+{
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG cfg{};
+    if (!WinHttpGetIEProxyConfigForCurrentUser(&cfg))
+        return false;
+    bool set = false;
+    if (cfg.fAutoDetect)
+        set = true;
+    if (cfg.lpszAutoConfigUrl && *cfg.lpszAutoConfigUrl)
+        set = true;
+    if (cfg.lpszAutoConfigUrl) GlobalFree(cfg.lpszAutoConfigUrl);
+    if (cfg.lpszProxy) GlobalFree(cfg.lpszProxy);
+    if (cfg.lpszProxyBypass) GlobalFree(cfg.lpszProxyBypass);
+    return set;
+}
+
 static bool host_resolves_private_only(const std::string& host, bool& has_public)
 {
     has_public = false;
@@ -2056,33 +2208,122 @@ static bool host_resolves_private_only(const std::string& host, bool& has_public
     return all_private;
 }
 
-bool hosts_override_present(const std::string& host)
+static void collect_ips_from_dns(PDNS_RECORD rec, std::vector<std::string>& out)
+{
+    for (auto p = rec; p; p = p->pNext) {
+        if (p->wType == DNS_TYPE_A) {
+            char buf[INET_ADDRSTRLEN] = {};
+            inet_ntop(AF_INET, &p->Data.A.IpAddress, buf, sizeof(buf));
+            out.emplace_back(buf);
+        } else if (p->wType == DNS_TYPE_AAAA) {
+            char buf[INET6_ADDRSTRLEN] = {};
+            inet_ntop(AF_INET6, &p->Data.AAAA.Ip6Address, buf, sizeof(buf));
+            out.emplace_back(buf);
+        }
+    }
+}
+
+static bool dns_cache_poisoned(const std::string& host)
 {
     if (host.empty())
         return false;
-    std::string host_lower = host;
-    std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    const char* sysroot = std::getenv("SystemRoot");
-    std::string hosts_path = sysroot ? std::string(sysroot) : "C:\\Windows";
-    hosts_path += "\\System32\\drivers\\etc\\hosts";
-    std::ifstream file(hosts_path);
-    if (!file.good())
+
+    std::vector<std::string> cached;
+    std::vector<std::string> fresh;
+
+    PDNS_RECORD rec_cached = nullptr;
+    PDNS_RECORD rec_fresh = nullptr;
+
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_A, DNS_QUERY_STANDARD, nullptr, &rec_cached, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_cached, cached);
+        DnsRecordListFree(rec_cached, DnsFreeRecordList);
+    }
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_AAAA, DNS_QUERY_STANDARD, nullptr, &rec_cached, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_cached, cached);
+        DnsRecordListFree(rec_cached, DnsFreeRecordList);
+    }
+
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_A, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_AAAA, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+
+    if (cached.empty() || fresh.empty())
         return false;
-    std::string line;
-    while (std::getline(file, line)) {
-        auto hash_pos = line.find('#');
-        if (hash_pos != std::string::npos)
-            line = line.substr(0, hash_pos);
-        std::transform(line.begin(), line.end(), line.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (line.find(host_lower) == std::string::npos)
-            continue;
-        // basic whole-word check
-        if (line.find(" " + host_lower) != std::string::npos || line.find("\t" + host_lower) != std::string::npos)
+
+    std::sort(cached.begin(), cached.end());
+    cached.erase(std::unique(cached.begin(), cached.end()), cached.end());
+    std::sort(fresh.begin(), fresh.end());
+    fresh.erase(std::unique(fresh.begin(), fresh.end()), fresh.end());
+
+    return cached != fresh;
+}
+
+static bool dns_fresh_contains_ip(const std::string& host, const std::string& ip)
+{
+    if (host.empty() || ip.empty())
+        return false;
+    std::vector<std::string> fresh;
+    PDNS_RECORD rec_fresh = nullptr;
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_A, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+    if (DnsQuery_A(host.c_str(), DNS_TYPE_AAAA, DNS_QUERY_BYPASS_CACHE, nullptr, &rec_fresh, nullptr) == ERROR_SUCCESS) {
+        collect_ips_from_dns(rec_fresh, fresh);
+        DnsRecordListFree(rec_fresh, DnsFreeRecordList);
+    }
+    if (fresh.empty())
+        return false;
+    for (const auto& entry : fresh) {
+        if (_stricmp(entry.c_str(), ip.c_str()) == 0)
             return true;
     }
     return false;
+}
+
+bool hosts_override_present(const std::string& host)
+{
+	if (host.empty())
+		return false;
+
+	std::string host_lower = host;
+	std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+		[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+	const char* sysroot = std::getenv("SystemRoot");
+	std::string hosts_path = sysroot ? std::string(sysroot) : "C:\\Windows";
+	hosts_path += "\\System32\\drivers\\etc\\hosts";
+
+	// this will block the symlink/reparse tricks and attrs
+	const DWORD attr = GetFileAttributesA(hosts_path.c_str());
+	if (attr == INVALID_FILE_ATTRIBUTES)
+		return false;
+	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) // symlink/junction
+		return true;
+
+	std::ifstream file(hosts_path);
+	if (!file.good())
+		return false;
+
+	std::string line;
+	while (std::getline(file, line)) {
+		auto hash_pos = line.find('#');
+		if (hash_pos != std::string::npos)
+			line = line.substr(0, hash_pos);
+
+		std::transform(line.begin(), line.end(), line.begin(),
+			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+		// word check example, this can always be improved
+		if (line.find(" " + host_lower) != std:string::npos || line.find("\t" + host_lower) != std::string::npos)
+			return true;
+	}
+	return false;
 }
 
 static std::wstring to_lower_ws(std::wstring value)
@@ -2210,6 +2451,32 @@ void snapshot_prologues()
     prologues_ready.store(true);
     snapshot_text_hashes();
     snapshot_text_page_protections();
+    snapshot_data_page_protections();
+    {
+        std::uintptr_t text_base = 0;
+        size_t text_size = 0;
+        if (get_text_section_info(text_base, text_size) && text_base && text_size) {
+            const auto* text_ptr = reinterpret_cast<const uint8_t*>(text_base);
+            text_crc_baseline.store(rolling_crc32(text_ptr, text_size));
+        }
+    }
+}
+
+static void snapshot_checkinit()
+{
+    if (checkinit_ready.load())
+        return;
+    const auto p = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(&checkInit));
+    std::memcpy(checkinit_prologue.data(), p, checkinit_prologue.size());
+    checkinit_ready.store(true);
+}
+
+static bool checkinit_ok()
+{
+    if (!checkinit_ready.load())
+        return true;
+    const auto p = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(&checkInit));
+    return std::memcmp(checkinit_prologue.data(), p, checkinit_prologue.size()) == 0;
 }
 
 bool prologues_ok()
@@ -2292,6 +2559,64 @@ static bool get_text_section_info(std::uintptr_t& base, size_t& size)
     return false;
 }
 
+static uint32_t rolling_crc32(const uint8_t* data, size_t len, size_t window = 64, size_t stride = 16)
+{
+    if (!data || len < window)
+        return 0;
+    uint32_t crc = 0xFFFFFFFFu;
+    for (size_t i = 0; i + window <= len; i += stride) {
+        for (size_t j = 0; j < window; ++j) {
+            uint8_t b = data[i + j];
+            crc ^= b;
+            for (int k = 0; k < 8; ++k) {
+                uint32_t mask = (crc & 1u) ? 0xFFFFFFFFu : 0u;
+                crc = (crc >> 1) ^ (0xEDB88320u & mask);
+            }
+        }
+    }
+    return ~crc;
+}
+
+static bool get_data_section_info(std::uintptr_t& base, size_t& size)
+{
+    const auto hmodule = GetModuleHandle(nullptr);
+    if (!hmodule) return false;
+    const auto base_0 = reinterpret_cast<std::uintptr_t>(hmodule);
+    const auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base_0);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+    const auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base_0 + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+    auto section = IMAGE_FIRST_SECTION(nt);
+    for (auto i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (std::memcmp(section->Name, ".data", 5) == 0) {
+            base = base_0 + section->VirtualAddress;
+            size = section->Misc.VirtualSize;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool get_rdata_section_info(std::uintptr_t& base, size_t& size)
+{
+    const auto hmodule = GetModuleHandle(nullptr);
+    if (!hmodule) return false;
+    const auto base_0 = reinterpret_cast<std::uintptr_t>(hmodule);
+    const auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base_0);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+    const auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base_0 + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+    auto section = IMAGE_FIRST_SECTION(nt);
+    for (auto i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+        if (std::memcmp(section->Name, ".rdata", 6) == 0) {
+            base = base_0 + section->VirtualAddress;
+            size = section->Misc.VirtualSize;
+            return true;
+        }
+    }
+    return false;
+}
+
 static uint32_t fnv1a(const uint8_t* data, size_t len)
 {
     uint32_t hash = 2166136261u;
@@ -2359,6 +2684,38 @@ void snapshot_text_page_protections()
     text_prot_ready.store(true);
 }
 
+void snapshot_data_page_protections()
+{
+    if (data_prot_ready.load())
+        return;
+    data_protections.clear();
+    const size_t page = 0x1000;
+
+    std::uintptr_t base = 0;
+    size_t size = 0;
+    if (get_data_section_info(base, size)) {
+        for (size_t off = 0; off < size; off += page) {
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (VirtualQuery(reinterpret_cast<const void*>(base + off), &mbi, sizeof(mbi)) == 0)
+                continue;
+            data_protections.emplace_back(reinterpret_cast<std::uintptr_t>(mbi.BaseAddress), mbi.Protect);
+        }
+    }
+
+    base = 0;
+    size = 0;
+    if (get_rdata_section_info(base, size)) {
+        for (size_t off = 0; off < size; off += page) {
+            MEMORY_BASIC_INFORMATION mbi{};
+            if (VirtualQuery(reinterpret_cast<const void*>(base + off), &mbi, sizeof(mbi)) == 0)
+                continue;
+            data_protections.emplace_back(reinterpret_cast<std::uintptr_t>(mbi.BaseAddress), mbi.Protect);
+        }
+    }
+
+    data_prot_ready.store(true);
+}
+
 bool text_page_protections_ok()
 {
     if (!text_prot_ready.load())
@@ -2373,6 +2730,24 @@ bool text_page_protections_ok()
         const bool exec = (prot & PAGE_EXECUTE) || (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_EXECUTE_WRITECOPY);
         const bool write = (prot & PAGE_READWRITE) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_WRITECOPY) || (prot & PAGE_EXECUTE_WRITECOPY);
         if (!exec || write)
+            return false;
+    }
+    return true;
+}
+
+bool data_page_protections_ok()
+{
+    if (!data_prot_ready.load())
+        return true;
+    for (const auto& entry : data_protections) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (VirtualQuery(reinterpret_cast<const void*>(entry.first), &mbi, sizeof(mbi)) == 0)
+            return false;
+        const DWORD prot = mbi.Protect;
+        if (prot != entry.second)
+            return false;
+        const bool exec = (prot & PAGE_EXECUTE) || (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE) || (prot & PAGE_EXECUTE_WRITECOPY);
+        if (exec)
             return false;
     }
     return true;
@@ -2406,6 +2781,156 @@ static bool addr_in_module(const void* addr, const wchar_t* module_name)
     const auto base = reinterpret_cast<const uint8_t*>(mi.lpBaseOfDll);
     const auto end = base + mi.SizeOfImage;
     return addr >= base && addr < end;
+}
+
+static bool addr_in_module_handle(const void* addr, HMODULE mod)
+{
+    if (!mod)
+        return false;
+    MODULEINFO mi{};
+    if (!GetModuleInformation(GetCurrentProcess(), mod, &mi, sizeof(mi)))
+        return false;
+    const auto base = reinterpret_cast<const uint8_t*>(mi.lpBaseOfDll);
+    const auto end = base + mi.SizeOfImage;
+    return addr >= base && addr < end;
+}
+
+static bool get_export_address(HMODULE mod, const char* name, void*& out_addr)
+{
+    out_addr = nullptr;
+    if (!mod || !name)
+        return false;
+    auto base = reinterpret_cast<uint8_t*>(mod);
+    auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+    auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    auto& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress)
+        return false;
+
+    auto exp = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
+    auto names = reinterpret_cast<DWORD*>(base + exp->AddressOfNames);
+    auto funcs = reinterpret_cast<DWORD*>(base + exp->AddressOfFunctions);
+    auto ords = reinterpret_cast<WORD*>(base + exp->AddressOfNameOrdinals);
+
+    for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
+        const char* n = reinterpret_cast<const char*>(base + names[i]);
+        if (_stricmp(n, name) == 0) {
+            WORD ord = ords[i];
+            DWORD rva = funcs[ord];
+            out_addr = base + rva;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool export_mismatch(const char* dll, const char* func)
+{
+    HMODULE mod = GetModuleHandleA(dll);
+    if (!mod)
+        return false;
+
+    void* by_export = nullptr;
+    if (!get_export_address(mod, func, by_export))
+        return false;
+
+    void* by_proc = GetProcAddress(mod, func);
+    if (!by_proc)
+        return false;
+
+    return by_export != by_proc;
+}
+
+static bool hotpatch_prologue_present(const void* fn)
+{
+    if (!fn)
+        return false;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+    if (p[0] == 0x8B && p[1] == 0xFF) return true; // mov edi, edi
+    if (p[0] == 0x90 && p[1] == 0x90 && p[2] == 0x90 && p[3] == 0x90 && p[4] == 0x90) return true;
+    return false;
+}
+
+static bool ntdll_syscall_stub_tampered(const char* name)
+{
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (!ntdll || !name)
+        return false;
+    void* fn = GetProcAddress(ntdll, name);
+    if (!fn)
+        return false;
+
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+#ifdef _WIN64
+    if (!(p[0] == 0x4C && p[1] == 0x8B && p[2] == 0xD1)) return true;
+    if (!(p[3] == 0xB8)) return true;
+    if (!(p[8] == 0x0F && p[9] == 0x05)) return true;
+    if (!(p[10] == 0xC3)) return true;
+#endif
+    return false;
+}
+
+static bool nearby_trampoline_present(const void* fn)
+{
+    if (!fn)
+        return false;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+    for (int i = -32; i <= 32; ++i) {
+        const uint8_t* q = p + i;
+        if (q[0] == 0xE9) return true; // jmp rel32
+        if (q[0] == 0xFF && q[1] == 0x25) return true; // jmp [rip+imm32]
+    }
+    return false;
+}
+
+static bool iat_hook_suspect(const char* dll_name, const char* func_name)
+{
+    HMODULE mod = GetModuleHandleA(dll_name);
+    if (!mod || !func_name)
+        return false;
+    void* addr = GetProcAddress(mod, func_name);
+    if (!addr)
+        return false;
+    return !addr_in_module_handle(addr, mod);
+}
+
+static bool get_export_address(HMODULE mod, const char* name, void*& out_addr)
+{
+    out_addr = nullptr;
+    if (!mod || !name)
+        return false;
+    auto base = reinterpret_cast<uint8_t*>(mod);
+    auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return false;
+    auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return false;
+
+    auto& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress)
+        return false;
+
+    auto exp = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
+    auto names = reinterpret_cast<DWORD*>(base + exp->AddressOfNames);
+    auto funcs = reinterpret_cast<DWORD*>(base + exp->AddressOfFunctions);
+    auto ords = reinterpret_cast<WORD*>(base + exp->AddressOfNameOrdinals);
+
+    for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
+        const char* n = reinterpret_cast<const char*>(base + names[i]);
+        if (_stricmp(n, name) == 0) {
+            WORD ord = ords[i];
+            DWORD rva = funcs[ord];
+            out_addr = base + rva;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool import_addresses_ok()
@@ -2464,6 +2989,42 @@ static bool iat_get_import_address(HMODULE module, const char* import_name, void
     return true;
 }
 
+static bool iat_points_outside_module(HMODULE module, const char* func_name)
+{
+    if (!module || !func_name)
+        return false;
+
+    void* addr = nullptr;
+    bool found = false;
+    if (!iat_get_import_address(module, func_name, addr, found) || !found)
+        return false;
+
+    HMODULE owner = nullptr;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCSTR>(addr), &owner)) {
+        return true;
+    }
+
+    if (!addr_in_module_handle(addr, owner))
+        return true;
+
+    return false;
+}
+
+static bool iat_integrity_ok()
+{
+    HMODULE self = GetModuleHandle(nullptr);
+    if (!self)
+        return false;
+
+    for (const char* name : kCriticalImports) {
+        if (iat_points_outside_module(self, name)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void heartbeat_thread(KeyAuth::api* instance)
 {
     std::random_device rd;
@@ -2485,6 +3046,17 @@ void start_heartbeat(KeyAuth::api* instance)
     if (heartbeat_started.exchange(true))
         return;
     std::thread(heartbeat_thread, instance).detach();
+}
+
+static void security_watchdog()
+{
+    while (true) {
+        Sleep(15000);
+        if (!checkinit_ok()) {
+            error(XorStr("security watchdog detected tamper."))
+        }
+        checkInit();
+    }
 }
 
 void KeyAuth::api::setDebug(bool value) {
@@ -2522,16 +3094,41 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         ScopeWipe host_lower_wipe(host_lower);
         std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (host_is_keyauth(host_lower)) {
-            if (is_ip_literal(host_lower)) {
-                error(XorStr("API host must not be an IP literal."));
+        if (!allowed_hosts.empty()) {
+            bool allowed = false;
+            for (const auto& entry : allowed_hosts) {
+                std::string entry_lower = entry;
+                std::transform(entry_lower.begin(), entry_lower.end(), entry_lower.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                if (entry_lower.rfind("*.", 0) == 0) {
+                    auto suffix = entry_lower.substr(1);
+                    if (host_lower.size() >= suffix.size() &&
+                        host_lower.compare(host_lower.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                        allowed = true;
+                        break;
+                    }
+                } else if (host_lower == entry_lower) {
+                    allowed = true;
+                    break;
+                }
             }
-            if (proxy_env_set() || winhttp_proxy_set()) {
-                error(XorStr("Proxy settings detected for API host."));
+            if (!allowed) {
+                error(XorStr("API host is not in allowed host list."));
             }
+        }
+    if (host_is_keyauth(host_lower)) {
+        if (is_ip_literal(host_lower)) {
+            error(XorStr("API host must not be an IP literal."));
+        }
+        if (proxy_env_set() || winhttp_proxy_set() || winhttp_proxy_auto_set()) {
+            error(XorStr("Proxy settings detected for API host."));
+        }
             bool has_public = false;
             if (host_resolves_private_only(host_lower, has_public) && !has_public) {
                 error(XorStr("API host resolves to private or loopback."));
+            }
+            if (dns_cache_poisoned(host_lower)) {
+                error(XorStr("DNS cache poisoning detected for API host."));
             }
         }
     }
@@ -2549,8 +3146,16 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 0L);
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
     curl_easy_setopt(curl, CURLOPT_CERTINFO, 1L);
-    curl_easy_setopt(curl, CURLOPT_NOPROXY, XorStr("keyauth.win").c_str());
+    curl_easy_setopt(curl, CURLOPT_PROXY, "");
+#ifdef CURL_SSLVERSION_TLSv1_2
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+#endif
+    curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &to_return);
@@ -2558,6 +3163,17 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, req_headers);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "KeyAuth");
+
+    if (!pinned_public_keys.empty()) {
+#ifdef CURLOPT_PINNEDPUBLICKEY
+        if (pinned_public_keys.size() > 1) {
+            error(XorStr("Multiple pinned public keys not supported."));
+        }
+        curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, pinned_public_keys.at(0).c_str());
+#else
+        error(XorStr("Pinned public key not supported by this libcurl build."));
+#endif
+    }
 
     // Perform the request
     CURLcode code = curl_easy_perform(curl);
@@ -2568,8 +3184,81 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         error(errorMsg);
     }
 
+    long ssl_verify = 0;
+    if (curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &ssl_verify) == CURLE_OK) {
+        if (ssl_verify != 0) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("SSL verify result failed."));
+        }
+    }
+
+    if (signature.empty() || signatureTimestamp.empty()) {
+        if (req_headers) curl_slist_free_all(req_headers);
+        curl_easy_cleanup(curl);
+        error(XorStr("missing signature headers."));
+    }
+
+    char* effective_url = nullptr;
+    if (curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective_url) == CURLE_OK && effective_url) {
+        if (!is_https_url(effective_url)) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("effective url not https."));
+        }
+        std::string eff_host = extract_host(effective_url);
+        std::string host_lower = host;
+        std::string eff_lower = eff_host;
+        std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        std::transform(eff_lower.begin(), eff_lower.end(), eff_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (!eff_lower.empty() && eff_lower != host_lower) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("effective url host mismatch."));
+        }
+    }
+
+    long primary_port = 0;
+    if (curl_easy_getinfo(curl, CURLINFO_PRIMARY_PORT, &primary_port) == CURLE_OK) {
+        if (primary_port != 443) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("api port mismatch."));
+        }
+    }
+
+    char* primary_ip = nullptr;
+    if (curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &primary_ip) == CURLE_OK && primary_ip) {
+        std::string ip = primary_ip;
+        std::string host_lower = host;
+        std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (host_is_keyauth(host_lower) && ip_string_private_or_loopback(ip)) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("api host resolved to private or loopback ip."));
+        }
+        if (host_is_keyauth(host_lower) && !dns_fresh_contains_ip(host_lower, ip)) {
+            if (req_headers) curl_slist_free_all(req_headers);
+            curl_easy_cleanup(curl);
+            error(XorStr("api host ip mismatch vs fresh dns."));
+        }
+    }
+
     if (KeyAuth::api::debug) {
         debugInfo("n/a", "n/a", to_return, "n/a");
+    }
+    if (to_return.size() > (2 * 1024 * 1024)) {
+        if (req_headers) curl_slist_free_all(req_headers);
+        curl_easy_cleanup(curl);
+        error(XorStr("response too large."));
+    }
+    if (to_return.size() < 32) {
+        if (req_headers) curl_slist_free_all(req_headers);
+        curl_easy_cleanup(curl);
+        error(XorStr("response too small."));
     }
     if (req_headers) curl_slist_free_all(req_headers);
     curl_easy_cleanup(curl);
@@ -2585,7 +3274,7 @@ void error(std::string message) {
     LI_FN(__fastfail)(0);
 }
 // code submitted in pull request from https://github.com/Roblox932
-auto check_section_integrity( const char *section_name, bool fix = false ) -> bool
+integrity( const char *section_name, bool fix = false ) -> bool
 {
     const auto map_file = []( HMODULE hmodule ) -> std::tuple<std::uintptr_t, HANDLE>
     {
@@ -2911,10 +3600,78 @@ void KeyAuth::api::debugInfo(std::string data, std::string url, std::string resp
     logfile.close();
 }
 
+static bool compare_text_to_disk()
+{
+    wchar_t filename[MAX_PATH] = {};
+    DWORD size = MAX_PATH;
+    if (!QueryFullProcessImageName(GetCurrentProcess(), 0, filename, &size))
+        return false;
+
+    HANDLE file = CreateFileW(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (file == INVALID_HANDLE_VALUE)
+        return false;
+
+    HANDLE map = CreateFileMappingW(file, 0, PAGE_READONLY, 0, 0, 0);
+    if (!map) {
+        CloseHandle(file);
+        return false;
+    }
+
+    void* mapped = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
+    if (!mapped) {
+        CloseHandle(map);
+        CloseHandle(file);
+        return false;
+    }
+
+    auto base_mem = reinterpret_cast<std::uintptr_t>(GetModuleHandle(nullptr));
+    auto base_disk = reinterpret_cast<std::uintptr_t>(mapped);
+
+    auto dos_mem = reinterpret_cast<IMAGE_DOS_HEADER*>(base_mem);
+    auto dos_disk = reinterpret_cast<IMAGE_DOS_HEADER*>(base_disk);
+
+    if (dos_mem->e_magic != IMAGE_DOS_SIGNATURE || dos_disk->e_magic != IMAGE_DOS_SIGNATURE) {
+        UnmapViewOfFile(mapped);
+        CloseHandle(map);
+        CloseHandle(file);
+        return false;
+    }
+
+    auto nt_mem = reinterpret_cast<IMAGE_NT_HEADERS*>(base_mem + dos_mem->e_lfanew);
+    auto nt_disk = reinterpret_cast<IMAGE_NT_HEADERS*>(base_disk + dos_disk->e_lfanew);
+
+    auto sec_mem = IMAGE_FIRST_SECTION(nt_mem);
+    auto sec_disk = IMAGE_FIRST_SECTION(nt_disk);
+
+    for (unsigned i = 0; i < nt_mem->FileHeader.NumberOfSections; ++i, ++sec_mem, ++sec_disk) {
+        if (std::memcmp(sec_mem->Name, ".text", 5) == 0) {
+            const size_t size_text = sec_mem->Misc.VirtualSize;
+            const uint8_t* mem_ptr = reinterpret_cast<const uint8_t*>(base_mem + sec_mem->VirtualAddress);
+            const uint8_t* disk_ptr = reinterpret_cast<const uint8_t*>(base_disk + sec_disk->PointerToRawData);
+            bool same = (std::memcmp(mem_ptr, disk_ptr, size_text) == 0);
+
+            UnmapViewOfFile(mapped);
+            CloseHandle(map);
+            CloseHandle(file);
+            return same;
+        }
+    }
+
+    UnmapViewOfFile(mapped);
+    CloseHandle(map);
+    CloseHandle(file);
+    return false;
+}
+
 void checkInit() {
     if (!initialized) {
         error(XorStr("You need to run the KeyAuthApp.init(); function before any other KeyAuth functions"));
     }
+
+    if (!checkinit_ok()) {
+        error(XorStr("checkInit prologue modified."));
+    }
+
     // usage: call init() once at startup; checks run automatically after that -nigel
     const auto now = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
@@ -2937,6 +3694,7 @@ void checkInit() {
         const bool heavy_ok =
             text_hashes_ok() &&
             text_page_protections_ok() &&
+            data_page_protections_ok() &&
             import_addresses_ok() &&
             !detour_suspect(reinterpret_cast<const uint8_t*>(&VerifyPayload)) &&
             !detour_suspect(reinterpret_cast<const uint8_t*>(&checkInit)) &&
@@ -2956,6 +3714,56 @@ void checkInit() {
         } else {
             heavy_fail_streak.store(0);
         }
+        {
+            std::uintptr_t text_base = 0;
+            size_t text_size = 0;
+            if (get_text_section_info(text_base, text_size) && text_base && text_size) {
+                const auto* text_ptr = reinterpret_cast<const uint8_t*>(text_base);
+                const uint32_t crc_now = rolling_crc32(text_ptr, text_size);
+                const uint32_t crc_base = text_crc_baseline.load();
+                if (crc_base != 0 && crc_now != crc_base) {
+                    error(XorStr(".text rolling crc mismatch."));
+                }
+            }
+        }
+
+        if (!compare_text_to_disk()) {
+            error(XorStr("memory .text mismatch vs disk image."));
+        }
+
+        if (export_mismatch("KERNEL32.dll", "LoadLibraryA") ||
+            export_mismatch("KERNEL32.dll", "GetProcAddress") ||
+            export_mismatch("WINHTTP.dll", "WinHttpGetDefaultProxyConfiguration") ||
+            export_mismatch("WINTRUST.dll", "WinVerifyTrust")) {
+            error(XorStr("export mismatch detected."));
+        }
+
+        if (hotpatch_prologue_present(&WinVerifyTrust) ||
+            hotpatch_prologue_present(&WinHttpGetDefaultProxyConfiguration)) {
+            error(XorStr("hotpatch prologue detected."));
+        }
+
+        if (ntdll_syscall_stub_tampered("NtQueryInformationProcess") ||
+            ntdll_syscall_stub_tampered("NtProtectVirtualMemory")) {
+            error(XorStr("ntdll syscall stub tampered."));
+        }
+
+        if (nearby_trampoline_present(&curl_easy_perform) ||
+            nearby_trampoline_present(&curl_easy_setopt)) {
+            error(XorStr("trampoline near api detected."));
+        }
+
+        if (iat_hook_suspect("KERNEL32.dll", "LoadLibraryA") ||
+            iat_hook_suspect("KERNEL32.dll", "GetProcAddress") ||
+            iat_hook_suspect("WINHTTP.dll", "WinHttpGetDefaultProxyConfiguration") ||
+            iat_hook_suspect("WINTRUST.dll", "WinVerifyTrust")) {
+            error(XorStr("iat hook detected."));
+        }
+
+        if (!iat_integrity_ok()) {
+            error(XorStr("iat integrity check failed."));
+        }
+
 periodic_done:
         if (check_section_integrity(XorStr(".text").c_str(), false)) {
             const int streak = integrity_fail_streak.fetch_add(1) + 1;
@@ -3020,13 +3828,13 @@ DWORD64 FindPattern(BYTE* bMask, const char* szMask)
 DWORD64 Function_Address;
 void modify()
 {
-    // code submitted in pull request from https://github.com/Roblox932
     check_section_integrity( XorStr( ".text" ).c_str( ), true );
 
     while (true)
     {
-        // new code by https://github.com/LiamG53
+        #if KEYAUTH_HAVE_KILLEMU
         protection::init();
+        #endif
         // ^ check for jumps, break points (maybe useless), return address.
 
         if ( check_section_integrity( XorStr( ".text" ).c_str( ), false ) )

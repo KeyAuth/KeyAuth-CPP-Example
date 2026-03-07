@@ -2,6 +2,9 @@
 #include <xorstr.hpp>
 #include <random>
 #include <chrono>
+#include <atomic>
+#include <thread>
+#include <functional>
 
 #define CURL_STATICLIB 
 
@@ -48,6 +51,14 @@ namespace KeyAuth {
 		void fetchstats();
 		void forgot(std::string username, std::string email);
 		void logout();
+		void start_ban_monitor(int interval_seconds = 45, bool check_session = false, std::function<void()> on_ban = {});
+		void stop_ban_monitor();
+		bool ban_monitor_running() const;
+		bool ban_monitor_detected() const;
+		bool require_pinning = false;
+		bool block_proxy = false;
+		bool block_custom_ca = false;
+		bool block_private_dns = false;
 		static std::string expiry_remaining(const std::string& expiry);
 		static constexpr const char* kSavePath = "test.json";
 		static constexpr int kInitFailSleepMs = 1500;
@@ -121,10 +132,21 @@ namespace KeyAuth {
 		appdata app_data;
 		responsedata response;
 		Tfa tfa;
+
+		// Optional network hardening controls (do not require backend changes).
+		void set_allowed_hosts(const std::vector<std::string>& hosts) { allowed_hosts = hosts; }
+		void add_allowed_host(const std::string& host) { allowed_hosts.push_back(host); }
+		void clear_allowed_hosts() { allowed_hosts.clear(); }
+
+		void set_pinned_public_keys(const std::vector<std::string>& pins) { pinned_public_keys = pins; }
+		void add_pinned_public_key(const std::string& pin) { pinned_public_keys.push_back(pin); }
+		void clear_pinned_public_keys() { pinned_public_keys.clear(); }
 	private:
 
 		std::string sessionid, enckey;
-		static std::string req(std::string data, const std::string& url);
+		std::vector<std::string> allowed_hosts;
+		std::vector<std::string> pinned_public_keys;
+		std::string req(std::string data, const std::string& url);
 		static void debugInfo(std::string data, std::string url, std::string response, std::string headers);
 		static void setDebug(bool value);
 		
@@ -202,6 +224,10 @@ namespace KeyAuth {
 				api::response.channeldata.push_back(output);
 			}
 		}
+
+		std::atomic<bool> ban_monitor_running_{ false };
+		std::atomic<bool> ban_monitor_detected_{ false };
+		std::thread ban_monitor_thread_;
 
 		nlohmann::json response_decoder;
 
