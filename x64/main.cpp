@@ -109,8 +109,8 @@ void sessionStatus();
 
 // copy and paste from https://keyauth.cc/app/ and replace these string variables
 // Please watch tutorial HERE https://www.youtube.com/watch?v=5x4YkTmFH-U
-std::string name = skCrypt("name").decrypt(); // App name
-std::string ownerid = skCrypt("ownerid").decrypt(); // Account ID
+std::string name = skCrypt("Phamvannghia2345678's Application").decrypt(); // App name
+std::string ownerid = skCrypt("eIdsOe4J0j").decrypt(); // Account ID
 std::string version = skCrypt("1.0").decrypt(); // Application version. Used for automatic downloads see video here https://www.youtube.com/watch?v=kW195PLCBKs
 std::string url = skCrypt("https://keyauth.win/api/1.3/").decrypt(); // change if using KeyAuth custom domains feature
 std::string path = skCrypt("").decrypt(); // (OPTIONAL) see tutorial here https://www.youtube.com/watch?v=I9rxt821gMk&t=1s
