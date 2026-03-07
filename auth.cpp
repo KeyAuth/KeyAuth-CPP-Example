@@ -56,6 +56,7 @@
 #include <ws2tcpip.h>
 #include <winhttp.h>
 #include <windns.h>
+#include <tlhelp32.h>
 #include <string>
 #include <array>
 
@@ -110,6 +111,9 @@ bool core_modules_signed();
 static std::wstring get_system_dir();
 static std::wstring get_syswow_dir();
 void snapshot_prologues();
+static void snapshot_checkinit();
+static bool checkinit_ok();
+static void security_watchdog();
 bool prologues_ok();
 bool func_region_ok(const void* addr);
 bool timing_anomaly_detected();
@@ -118,11 +122,16 @@ void heartbeat_thread(KeyAuth::api* instance);
 void snapshot_text_hashes();
 bool text_hashes_ok();
 bool detour_suspect(const uint8_t* p);
+static bool entry_is_jmp_or_call(const void* fn);
+static bool entry_is_reg_jump(const void* fn);
 bool import_addresses_ok();
 void snapshot_text_page_protections();
 bool text_page_protections_ok();
 void snapshot_data_page_protections();
 bool data_page_protections_ok();
+static bool get_text_section_info(std::uintptr_t& base, size_t& size);
+static uint32_t rolling_crc32(const uint8_t* data, size_t len, size_t window = 64, size_t stride = 16);
+static bool get_export_address(HMODULE mod, const char* name, void*& out_addr);
  
 inline void secure_zero(std::string& value) noexcept;
 inline void securewipe(std::string& value) noexcept;
@@ -131,7 +140,24 @@ void cleanUpSeedData(const std::string& seed);
 std::string signature;
 std::string signatureTimestamp;
 bool initialized;
-std::string API_PUBLIC_KEY = "5586b4bc69c7a4b487e4563a4cd96afd39140f919bd31cea7d1c6a1e8439422b";
+static constexpr uint8_t k_pubkey_xor1 = 0x5A;
+static constexpr uint8_t k_pubkey_xor2 = 0xA5;
+static constexpr uint64_t k_pubkey_fnv1a = 0x7553f24ca052d4b1ULL;
+static const uint8_t k_pubkey_obf1[64] = {
+    0x6f, 0x6f, 0x62, 0x6c, 0x38, 0x6e, 0x38, 0x39, 0x6c, 0x63, 0x39, 0x6d, 0x3b, 0x6e, 0x38, 0x6e,
+    0x62, 0x6d, 0x3f, 0x6e, 0x6f, 0x6c, 0x69, 0x3b, 0x6e, 0x39, 0x3e, 0x63, 0x6c, 0x3b, 0x3c, 0x3e,
+    0x69, 0x63, 0x6b, 0x6e, 0x6a, 0x3c, 0x63, 0x6b, 0x63, 0x38, 0x3e, 0x69, 0x6b, 0x39, 0x3f, 0x3b,
+    0x6d, 0x3e, 0x6b, 0x39, 0x6c, 0x3b, 0x6b, 0x3f, 0x62, 0x6e, 0x69, 0x63, 0x6e, 0x68, 0x68, 0x38
+};
+static const uint8_t k_pubkey_obf2[64] = {
+    0x90, 0x90, 0x9d, 0x93, 0xc7, 0x91, 0xc7, 0xc6, 0x93, 0x9c, 0xc6, 0x92, 0xc4, 0x91, 0xc7, 0x91,
+    0x9d, 0x92, 0xc0, 0x91, 0x90, 0x93, 0x96, 0xc4, 0x91, 0xc6, 0xc1, 0x9c, 0x93, 0xc4, 0xc3, 0xc1,
+    0x96, 0x9c, 0x94, 0x91, 0x95, 0xc3, 0x9c, 0x94, 0x9c, 0xc7, 0xc1, 0x96, 0x94, 0xc6, 0xc0, 0xc4,
+    0x92, 0xc1, 0x94, 0xc6, 0x93, 0xc4, 0x94, 0xc0, 0x9d, 0x91, 0x96, 0x9c, 0x91, 0x97, 0x97, 0xc7
+};
+static std::atomic<uint64_t> pubkey_hash_seen{ 0 };
+static std::atomic<bool> pubkey_protect_ready{ false };
+static DWORD pubkey_protect_baseline = 0;
 bool KeyAuth::api::debug = false;
 std::atomic<bool> LoggedIn(false);
 std::atomic<long long> last_integrity_check{ 0 };
@@ -164,6 +190,9 @@ static std::atomic<uint32_t> text_crc_baseline{ 0 };
 static std::array<uint8_t, 16> checkinit_prologue{};
 static std::atomic<bool> checkinit_ready{ false };
 static std::atomic<bool> watchdog_started{ false };
+static std::atomic<uint32_t> curl_crc_baseline{ 0 };
+static std::atomic<uint32_t> sodium_crc_baseline{ 0 };
+
 
 static inline void secure_zero(std::string& value) noexcept
 {
@@ -177,6 +206,245 @@ static inline void secure_zero(std::string& value) noexcept
 static inline void securewipe(std::string& value) noexcept
 {
     secure_zero(value);
+}
+
+static uint64_t fnv1a64_bytes(const uint8_t* data, size_t len)
+{
+    uint64_t h = 0xcbf29ce484222325ULL;
+    for (size_t i = 0; i < len; ++i) {
+        h ^= static_cast<uint64_t>(data[i]);
+        h *= 0x100000001b3ULL;
+    }
+    return h;
+}
+
+static std::string decode_pubkey_hex(const uint8_t* obf, size_t len, uint8_t key)
+{
+    std::string out;
+    out.resize(len);
+    for (size_t i = 0; i < len; ++i) {
+        out[i] = static_cast<char>(obf[i] ^ key);
+    }
+    return out;
+}
+
+static std::string to_lower_ascii(std::string v)
+{
+    std::transform(v.begin(), v.end(), v.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return v;
+}
+
+static std::string wide_to_utf8(const wchar_t* w)
+{
+    if (!w)
+        return {};
+    int needed = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
+    if (needed <= 0)
+        return {};
+    std::string out(static_cast<size_t>(needed - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w, -1, out.data(), needed, nullptr, nullptr);
+    return out;
+}
+
+static bool list_contains_any(const std::string& hay, const std::vector<std::string>& needles)
+{
+    for (const auto& n : needles) {
+        if (hay.find(n) != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
+static bool suspicious_processes_present()
+{
+    const std::vector<std::string> bad = {
+        "fiddler", "mitmproxy", "charles", "httpdebugger", "proxifier",
+        "burpsuite", "wireshark", "tshark", "x64dbg", "x32dbg",
+        "ollydbg", "ida", "cheatengine", "processhacker"
+    };
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE)
+        return false;
+    PROCESSENTRY32 pe{};
+    pe.dwSize = sizeof(pe);
+    if (!Process32First(snap, &pe)) {
+        CloseHandle(snap);
+        return false;
+    }
+    do {
+        std::string name = to_lower_ascii(wide_to_utf8(pe.szExeFile));
+        if (list_contains_any(name, bad)) {
+            CloseHandle(snap);
+            return true;
+        }
+    } while (Process32Next(snap, &pe));
+    CloseHandle(snap);
+    return false;
+}
+
+static bool suspicious_modules_present()
+{
+    const std::vector<std::string> bad = {
+        "fiddlercore", "mitm", "charles", "httpdebugger", "proxifier",
+        "detours"
+    };
+    HMODULE mods[1024];
+    DWORD needed = 0;
+    if (!EnumProcessModules(GetCurrentProcess(), mods, sizeof(mods), &needed))
+        return false;
+    const size_t count = needed / sizeof(HMODULE);
+    char name[MAX_PATH]{};
+    for (size_t i = 0; i < count; ++i) {
+        if (GetModuleFileNameA(mods[i], name, MAX_PATH)) {
+            std::string lower = to_lower_ascii(name);
+            if (list_contains_any(lower, bad))
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool suspicious_windows_present()
+{
+    const std::vector<std::string> bad = {
+        "fiddler", "mitmproxy", "charles", "burp", "http debugger",
+        "x64dbg", "x32dbg", "ollydbg", "ida", "cheat engine",
+        "process hacker"
+    };
+    struct Ctx { const std::vector<std::string>* bad; bool hit; };
+    Ctx ctx{ &bad, false };
+    auto cb = [](HWND hwnd, LPARAM lparam) -> BOOL {
+        auto* c = reinterpret_cast<Ctx*>(lparam);
+        if (!IsWindowVisible(hwnd))
+            return TRUE;
+        char title[512]{};
+        GetWindowTextA(hwnd, title, sizeof(title));
+        if (title[0] == '\0')
+            return TRUE;
+        std::string t = to_lower_ascii(title);
+        if (list_contains_any(t, *c->bad)) {
+            c->hit = true;
+            return FALSE;
+        }
+        return TRUE;
+    };
+    EnumWindows(cb, reinterpret_cast<LPARAM>(&ctx));
+    return ctx.hit;
+}
+
+static bool proxy_env_set()
+{
+    const char* p1 = std::getenv("HTTP_PROXY");
+    const char* p2 = std::getenv("HTTPS_PROXY");
+    const char* p3 = std::getenv("ALL_PROXY");
+    return (p1 && *p1) || (p2 && *p2) || (p3 && *p3);
+}
+
+static bool url_points_to_loopback(const std::string& url)
+{
+    const std::string host = extract_host(url);
+    if (host.empty())
+        return false;
+    std::string h = to_lower_ascii(host);
+    if (h == "localhost" || h == "127.0.0.1" || h == "::1")
+        return true;
+
+    ADDRINFOA hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    ADDRINFOA* res = nullptr;
+    if (getaddrinfo(host.c_str(), nullptr, &hints, &res) != 0)
+        return false;
+    bool loopback = false;
+    for (auto* p = res; p; p = p->ai_next) {
+        if (p->ai_family == AF_INET) {
+            auto* in = reinterpret_cast<sockaddr_in*>(p->ai_addr);
+            if ((ntohl(in->sin_addr.s_addr) & 0xFF000000u) == 0x7F000000u) {
+                loopback = true;
+                break;
+            }
+        } else if (p->ai_family == AF_INET6) {
+            auto* in6 = reinterpret_cast<sockaddr_in6*>(p->ai_addr);
+            if (IN6_IS_ADDR_LOOPBACK(&in6->sin6_addr)) {
+                loopback = true;
+                break;
+            }
+        }
+    }
+    freeaddrinfo(res);
+    return loopback;
+}
+
+static bool pubkey_memory_protect_ok()
+{
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (!VirtualQuery(k_pubkey_obf1, &mbi, sizeof(mbi)))
+        return false;
+    const DWORD p = mbi.Protect;
+    if (p & PAGE_GUARD)
+        return false;
+    if ((p & PAGE_READWRITE) || (p & PAGE_WRITECOPY) ||
+        (p & PAGE_EXECUTE_READWRITE) || (p & PAGE_EXECUTE_WRITECOPY)) {
+        return false;
+    }
+    if (pubkey_protect_ready.load(std::memory_order_relaxed)) {
+        if (pubkey_protect_baseline != p)
+            return false;
+    }
+    return true;
+}
+
+static std::string get_public_key_hex()
+{
+    if (!pubkey_memory_protect_ok()) {
+        error(XorStr("public key memory protection tampered."));
+    }
+    std::string a = decode_pubkey_hex(k_pubkey_obf1, sizeof(k_pubkey_obf1), k_pubkey_xor1);
+    std::string b = decode_pubkey_hex(k_pubkey_obf2, sizeof(k_pubkey_obf2), k_pubkey_xor2);
+    if (a != b) {
+        error(XorStr("public key mismatch detected."));
+    }
+    const uint64_t h = fnv1a64_bytes(reinterpret_cast<const uint8_t*>(a.data()), a.size());
+    pubkey_hash_seen.store(h, std::memory_order_relaxed);
+    if (h != k_pubkey_fnv1a) {
+        error(XorStr("public key integrity failed."));
+    }
+    return a;
+}
+
+static bool module_contains_ascii(const std::string& needle)
+{
+    if (needle.empty())
+        return false;
+    MODULEINFO mi{};
+    if (!GetModuleInformation(GetCurrentProcess(), GetModuleHandleA(nullptr), &mi, sizeof(mi)))
+        return false;
+    const uint8_t* base = reinterpret_cast<const uint8_t*>(mi.lpBaseOfDll);
+    const uint8_t* end = base + mi.SizeOfImage;
+    const uint8_t* p = base;
+    while (p < end) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (!VirtualQuery(p, &mbi, sizeof(mbi)))
+            break;
+        const uint8_t* region = reinterpret_cast<const uint8_t*>(mbi.BaseAddress);
+        const uint8_t* region_end = region + mbi.RegionSize;
+        if (region_end > end)
+            region_end = end;
+        const DWORD protect = mbi.Protect;
+        const bool readable = (protect & PAGE_READONLY) || (protect & PAGE_READWRITE) ||
+            (protect & PAGE_EXECUTE_READ) || (protect & PAGE_EXECUTE_READWRITE) ||
+            (protect & PAGE_WRITECOPY) || (protect & PAGE_EXECUTE_WRITECOPY);
+        if (mbi.State == MEM_COMMIT && readable) {
+            const char* cbegin = reinterpret_cast<const char*>(region);
+            const char* cend = reinterpret_cast<const char*>(region_end);
+            auto it = std::search(cbegin, cend, needle.begin(), needle.end());
+            if (it != cend)
+                return true;
+        }
+        p = region_end;
+    }
+    return false;
 }
 
 struct ScopeWipe final {
@@ -206,11 +474,12 @@ void KeyAuth::api::init()
     std::thread(runChecks).detach();
     snapshot_prologues();
     snapshot_checkinit();
+    (void)get_public_key_hex();
     seed = generate_random_number();
     std::atexit([]() { cleanUpSeedData(seed); });
 
-    if (!secrutiy_watchdog.exchange(true)) {
-     std::thread(security_watchdog).detach();
+    if (!watchdog_started.exchange(true)) {
+        std::thread(security_watchdog).detach();
     }
 
     CreateThread(0, 0, (LPTHREAD_START_ROUTINE)modify, 0, 0, 0);
@@ -1956,7 +2225,8 @@ int VerifyPayload(std::string signature, std::string timestamp, std::string body
         exit(5);
     }
 
-    if (sodium_hex2bin(pk, sizeof(pk), API_PUBLIC_KEY.c_str(), API_PUBLIC_KEY.length(), NULL, NULL, NULL) != 0) {
+    const std::string pubkey_hex = get_public_key_hex();
+    if (sodium_hex2bin(pk, sizeof(pk), pubkey_hex.c_str(), pubkey_hex.length(), NULL, NULL, NULL) != 0) {
         std::cerr << "[ERROR] Failed to parse public key hex.\n";
         MessageBoxA(0, "Signature verification failed (invalid public key)", "KeyAuth", MB_ICONERROR);
         exit(6);
@@ -1966,7 +2236,7 @@ int VerifyPayload(std::string signature, std::string timestamp, std::string body
     std::cout << "[DEBUG] Signature: " << signature << std::endl;
     std::cout << "[DEBUG] Body: " << body << std::endl;
     std::cout << "[DEBUG] Message (timestamp + body): " << message << std::endl;
-    std::cout << "[DEBUG] Public Key: " << API_PUBLIC_KEY << std::endl;*/
+    std::cout << "[DEBUG] Public Key: " << pubkey_hex << std::endl;*/
 
     if (crypto_sign_ed25519_verify_detached(sig,
         reinterpret_cast<const unsigned char*>(message.c_str()),
@@ -2129,17 +2399,6 @@ static bool is_https_url(const std::string& url)
             return false;
     }
     return true;
-}
-
-static bool proxy_env_set()
-{
-    const char* keys[] = { "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy" };
-    for (const char* k : keys) {
-        const char* v = std::getenv(k);
-        if (v && *v)
-            return true;
-    }
-    return false;
 }
 
 static bool winhttp_proxy_set()
@@ -2320,7 +2579,7 @@ bool hosts_override_present(const std::string& host)
 			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
 		// word check example, this can always be improved
-		if (line.find(" " + host_lower) != std:string::npos || line.find("\t" + host_lower) != std::string::npos)
+		if (line.find(" " + host_lower) != std::string::npos || line.find("\t" + host_lower) != std::string::npos)
 			return true;
 	}
 	return false;
@@ -2433,6 +2692,84 @@ static std::wstring get_syswow_dir()
     return std::wstring(buf);
 }
 
+static std::wstring normalize_path(std::wstring p)
+{
+    std::transform(p.begin(), p.end(), p.begin(),
+        [](wchar_t c) { return static_cast<wchar_t>(towlower(c)); });
+    while (!p.empty() && (p.back() == L'\\' || p.back() == L'/')) {
+        p.pop_back();
+    }
+    return p;
+}
+
+static bool get_module_path(HMODULE mod, std::wstring& out)
+{
+    wchar_t path[MAX_PATH] = {};
+    if (!mod)
+        return false;
+    if (!GetModuleFileNameW(mod, path, MAX_PATH))
+        return false;
+    out.assign(path);
+    return true;
+}
+
+static bool module_in_system32(HMODULE mod)
+{
+    std::wstring mod_path;
+    if (!get_module_path(mod, mod_path))
+        return false;
+    mod_path = normalize_path(mod_path);
+
+    std::wstring sys = normalize_path(get_system_dir());
+    if (sys.empty())
+        return false;
+
+    return mod_path.rfind(sys + L"\\", 0) == 0;
+}
+
+static uint32_t file_crc32(const std::wstring& path)
+{
+    std::ifstream f(path, std::ios::binary);
+    if (!f.good()) return 0;
+    std::vector<uint8_t> buf((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (buf.empty()) return 0;
+
+    uint32_t crc = 0xFFFFFFFFu;
+    for (uint8_t b : buf) {
+        crc ^= b;
+        for (int k = 0; k < 8; ++k) {
+            uint32_t mask = (crc & 1u) ? 0xFFFFFFFFu : 0u;
+            crc = (crc >> 1) ^ (0xEDB88320u & mask);
+        }
+    }
+    return ~crc;
+}
+
+static bool critical_modules_safe()
+{
+    const wchar_t* system_mods[] = { L"wintrust.dll", L"crypt32.dll", L"bcrypt.dll" };
+    for (const auto* name : system_mods) {
+        HMODULE mod = GetModuleHandleW(name);
+        if (!mod) return false;
+        if (!module_in_system32(mod)) return false;
+    }
+
+    const wchar_t* app_mods[] = { L"libcurl.dll", L"libsodium.dll" };
+    for (const auto* name : app_mods) {
+        HMODULE mod = GetModuleHandleW(name);
+        if (!mod) continue;
+        std::wstring path;
+        if (!get_module_path(mod, path)) return false;
+        std::wstring p = normalize_path(path);
+
+        if (p.find(L"\\appdata\\") != std::wstring::npos ||
+            p.find(L"\\temp\\") != std::wstring::npos ||
+            p.find(L"\\downloads\\") != std::wstring::npos) {
+            return false;
+        }
+    }
+    return true;
+}
 
 void snapshot_prologues()
 {
@@ -2559,7 +2896,7 @@ static bool get_text_section_info(std::uintptr_t& base, size_t& size)
     return false;
 }
 
-static uint32_t rolling_crc32(const uint8_t* data, size_t len, size_t window = 64, size_t stride = 16)
+static uint32_t rolling_crc32(const uint8_t* data, size_t len, size_t window, size_t stride)
 {
     if (!data || len < window)
         return 0;
@@ -2770,6 +3107,26 @@ bool detour_suspect(const uint8_t* p)
     return false;
 }
 
+static bool entry_is_jmp_or_call(const void* fn)
+{
+    if (!fn) return false;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+    if (p[0] == 0xE9) return true; // jmp rel32
+    if (p[0] == 0xFF && p[1] == 0x25) return true; // jmp [rip+imm32]
+    if (p[0] == 0xE8) return true; // call rel32
+    if (p[0] == 0x68 && p[5] == 0xC3) return true; // push imm32; ret
+    return false;
+}
+
+static bool entry_is_reg_jump(const void* fn)
+{
+    if (!fn) return false;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
+    if (p[0] == 0xFF && (p[1] & 0xF8) == 0xE0) return true; // jmp reg
+    if (p[0] == 0xFF && (p[1] & 0xF8) == 0xD0) return true; // call reg
+    return false;
+}
+
 static bool addr_in_module(const void* addr, const wchar_t* module_name)
 {
     HMODULE mod = module_name ? GetModuleHandleW(module_name) : GetModuleHandle(nullptr);
@@ -2793,40 +3150,6 @@ static bool addr_in_module_handle(const void* addr, HMODULE mod)
     const auto base = reinterpret_cast<const uint8_t*>(mi.lpBaseOfDll);
     const auto end = base + mi.SizeOfImage;
     return addr >= base && addr < end;
-}
-
-static bool get_export_address(HMODULE mod, const char* name, void*& out_addr)
-{
-    out_addr = nullptr;
-    if (!mod || !name)
-        return false;
-    auto base = reinterpret_cast<uint8_t*>(mod);
-    auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
-        return false;
-    auto nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE)
-        return false;
-
-    auto& dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-    if (!dir.VirtualAddress)
-        return false;
-
-    auto exp = reinterpret_cast<IMAGE_EXPORT_DIRECTORY*>(base + dir.VirtualAddress);
-    auto names = reinterpret_cast<DWORD*>(base + exp->AddressOfNames);
-    auto funcs = reinterpret_cast<DWORD*>(base + exp->AddressOfFunctions);
-    auto ords = reinterpret_cast<WORD*>(base + exp->AddressOfNameOrdinals);
-
-    for (DWORD i = 0; i < exp->NumberOfNames; ++i) {
-        const char* n = reinterpret_cast<const char*>(base + names[i]);
-        if (_stricmp(n, name) == 0) {
-            WORD ord = ords[i];
-            DWORD rva = funcs[ord];
-            out_addr = base + rva;
-            return true;
-        }
-    }
-    return false;
 }
 
 static bool export_mismatch(const char* dll, const char* func)
@@ -2867,10 +3190,30 @@ static bool ntdll_syscall_stub_tampered(const char* name)
 
     const uint8_t* p = reinterpret_cast<const uint8_t*>(fn);
 #ifdef _WIN64
-    if (!(p[0] == 0x4C && p[1] == 0x8B && p[2] == 0xD1)) return true;
-    if (!(p[3] == 0xB8)) return true;
-    if (!(p[8] == 0x0F && p[9] == 0x05)) return true;
-    if (!(p[10] == 0xC3)) return true;
+    // Reduce false positives: only flag obvious hooks/trampolines or missing syscall.
+    const uint8_t* q = p;
+    if (q[0] == 0xE9 || (q[0] == 0xFF && q[1] == 0x25)) {
+        return true; // direct jmp / jmp [rip+imm32]
+    }
+    // Skip ENDBR64 (f3 0f 1e fa)
+    if (q[0] == 0xF3 && q[1] == 0x0F && q[2] == 0x1E && q[3] == 0xFA) {
+        q += 4;
+    }
+    // Skip common padding (int3/nop)
+    for (int i = 0; i < 8 && (*q == 0xCC || *q == 0x90); ++i) {
+        q++;
+    }
+    // Scan first 32 bytes for syscall; if absent, suspect hook.
+    bool has_syscall = false;
+    for (int i = 0; i < 32; ++i) {
+        if (q[i] == 0x0F && q[i + 1] == 0x05) {
+            has_syscall = true;
+            break;
+        }
+    }
+    if (!has_syscall) {
+        return true;
+    }
 #endif
     return false;
 }
@@ -3053,7 +3396,7 @@ static void security_watchdog()
     while (true) {
         Sleep(15000);
         if (!checkinit_ok()) {
-            error(XorStr("security watchdog detected tamper."))
+            error(XorStr("security watchdog detected tamper."));
         }
         checkInit();
     }
@@ -3079,6 +3422,22 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         !func_region_ok(reinterpret_cast<const void*>(&check_section_integrity))) {
         error(XorStr("function region check failed, possible hook detected."));
     }
+    if (entry_is_jmp_or_call(reinterpret_cast<const void*>(&VerifyPayload)) ||
+        entry_is_jmp_or_call(reinterpret_cast<const void*>(&checkInit)) ||
+        entry_is_jmp_or_call(reinterpret_cast<const void*>(&integrity_check)) ||
+        entry_is_jmp_or_call(reinterpret_cast<const void*>(&check_section_integrity)) ||
+        entry_is_reg_jump(reinterpret_cast<const void*>(&VerifyPayload)) ||
+        entry_is_reg_jump(reinterpret_cast<const void*>(&checkInit)) ||
+        entry_is_reg_jump(reinterpret_cast<const void*>(&integrity_check)) ||
+        entry_is_reg_jump(reinterpret_cast<const void*>(&check_section_integrity))) {
+        error(XorStr("entry-point hook detected (jmp/call stub)."));
+    }
+    if (suspicious_processes_present() || suspicious_modules_present() || suspicious_windows_present()) {
+        error(XorStr("debugger/emulator/proxy detected."));
+    }
+    if (proxy_env_set()) {
+        error(XorStr("proxy environment detected."));
+    }
     if (!is_https_url(url)) {
         error(XorStr("API URL must use HTTPS."));
     }
@@ -3094,7 +3453,7 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
         ScopeWipe host_lower_wipe(host_lower);
         std::transform(host_lower.begin(), host_lower.end(), host_lower.begin(),
             [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (!allowed_hosts.empty()) {
+    if (!allowed_hosts.empty()) {
             bool allowed = false;
             for (const auto& entry : allowed_hosts) {
                 std::string entry_lower = entry;
@@ -3114,8 +3473,11 @@ std::string KeyAuth::api::req(std::string data, const std::string& url) {
             }
             if (!allowed) {
                 error(XorStr("API host is not in allowed host list."));
-            }
         }
+    }
+    if (url_points_to_loopback(url)) {
+        error(XorStr("loopback or local host detected for API URL."));
+    }
     if (host_is_keyauth(host_lower)) {
         if (is_ip_literal(host_lower)) {
             error(XorStr("API host must not be an IP literal."));
@@ -3274,7 +3636,7 @@ void error(std::string message) {
     LI_FN(__fastfail)(0);
 }
 // code submitted in pull request from https://github.com/Roblox932
-integrity( const char *section_name, bool fix = false ) -> bool
+auto check_section_integrity( const char *section_name, bool fix = false ) -> bool
 {
     const auto map_file = []( HMODULE hmodule ) -> std::tuple<std::uintptr_t, HANDLE>
     {
@@ -3699,6 +4061,16 @@ void checkInit() {
             !detour_suspect(reinterpret_cast<const uint8_t*>(&VerifyPayload)) &&
             !detour_suspect(reinterpret_cast<const uint8_t*>(&checkInit)) &&
             !detour_suspect(reinterpret_cast<const uint8_t*>(&error)) &&
+            !entry_is_jmp_or_call(reinterpret_cast<const void*>(&VerifyPayload)) &&
+            !entry_is_jmp_or_call(reinterpret_cast<const void*>(&checkInit)) &&
+            !entry_is_jmp_or_call(reinterpret_cast<const void*>(&error)) &&
+            !entry_is_jmp_or_call(reinterpret_cast<const void*>(&integrity_check)) &&
+            !entry_is_jmp_or_call(reinterpret_cast<const void*>(&check_section_integrity)) &&
+            !entry_is_reg_jump(reinterpret_cast<const void*>(&VerifyPayload)) &&
+            !entry_is_reg_jump(reinterpret_cast<const void*>(&checkInit)) &&
+            !entry_is_reg_jump(reinterpret_cast<const void*>(&error)) &&
+            !entry_is_reg_jump(reinterpret_cast<const void*>(&integrity_check)) &&
+            !entry_is_reg_jump(reinterpret_cast<const void*>(&check_section_integrity)) &&
             prologues_ok() &&
             func_region_ok(reinterpret_cast<const void*>(&VerifyPayload)) &&
             func_region_ok(reinterpret_cast<const void*>(&checkInit)) &&
@@ -3764,6 +4136,34 @@ void checkInit() {
             error(XorStr("iat integrity check failed."));
         }
 
+        if (!critical_modules_safe()) {
+            error(XorStr("critical module path violation."));
+        }
+
+        HMODULE curl = GetModuleHandleW(L"libcurl.dll");
+        if (curl) {
+            std::wstring p;
+            if (get_module_path(curl, p)) {
+                uint32_t now_crc = file_crc32(p);
+                uint32_t base_crc = curl_crc_baseline.load();
+                if (base_crc != 0 && now_crc != base_crc) {
+                    error(XorStr("libcurl checksum mismatch."));
+                }
+            }
+        }
+
+        HMODULE sodium = GetModuleHandleW(L"libsodium.dll");
+        if (sodium) {
+            std::wstring p;
+            if (get_module_path(sodium, p)) {
+                uint32_t now_crc = file_crc32(p);
+                uint32_t base_crc = sodium_crc_baseline.load();
+                if (base_crc != 0 && now_crc != base_crc) {
+                    error(XorStr("libsodium checksum mismatch."));
+                }
+            }
+        }
+
 periodic_done:
         if (check_section_integrity(XorStr(".text").c_str(), false)) {
             const int streak = integrity_fail_streak.fetch_add(1) + 1;
@@ -3793,6 +4193,9 @@ void integrity_check() {
     const auto last = last_integrity_check.load();
     if (now - last > 30) {
         last_integrity_check.store(now);
+        if (suspicious_processes_present() || suspicious_modules_present() || suspicious_windows_present()) {
+            error(XorStr("debugger/emulator/proxy detected."));
+        }
         if (check_section_integrity(XorStr(".text").c_str(), false)) {
             error(XorStr("check_section_integrity() failed, don't tamper with the program."));
         }
