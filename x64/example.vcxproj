@@ -165,13 +165,22 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="auth.hpp" />
+    <ClInclude Include="json.hpp" />
     <ClInclude Include="lib\auth.hpp" />
+    <ClInclude Include="lib\includes.hpp" />
     <ClInclude Include="lib\killEmulator.hpp" />
+    <ClInclude Include="lib\lazy_importer.hpp" />
     <ClInclude Include="lib\Security.hpp" />
     <ClInclude Include="lib\utils.hpp" />
     <ClInclude Include="auth_guard.hpp" />
+    <ClInclude Include="lib\xorstr.hpp" />
     <ClInclude Include="storage.hpp" />
     <ClInclude Include="skStr.h" />
+    <ClInclude Include="utils.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="library_x64.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
