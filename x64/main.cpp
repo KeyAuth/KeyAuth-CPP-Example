@@ -1,6 +1,5 @@
 #include <Windows.h>
-#include "lib/auth.hpp"
-#include "lib/utils.hpp"
+#include "auth.hpp"
 #include "auth_guard.hpp"
 #include "skStr.h"
 #include "storage.hpp"
@@ -20,8 +19,79 @@ std::string remaining_until(const std::string& timestamp);
 
 namespace {
 
+std::tm timestamp_to_tm(const std::string& timestamp) {
+    const std::time_t raw = static_cast<std::time_t>(std::strtoll(timestamp.c_str(), nullptr, 10));
+    std::tm result{};
+    localtime_s(&result, &raw);
+    return result;
+}
 
+void init_fail_delay() {
+    Sleep(api::kInitFailSleepMs);
+}
 
+void bad_input_delay() {
+    Sleep(api::kBadInputSleepMs);
+}
+
+void close_delay() {
+    Sleep(api::kCloseSleepMs);
+}
+
+bool lockout_active(const api::lockout_state& state) {
+    return std::chrono::steady_clock::now() < state.locked_until;
+}
+
+int lockout_remaining_ms(const api::lockout_state& state) {
+    if (!lockout_active(state))
+        return 0;
+
+    return static_cast<int>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            state.locked_until - std::chrono::steady_clock::now()).count());
+}
+
+void record_login_fail(api::lockout_state& state, int max_attempts = 3, int lock_seconds = 30) {
+    if (lockout_active(state))
+        return;
+
+    ++state.fails;
+    if (state.fails >= max_attempts) {
+        state.fails = 0;
+        state.locked_until = std::chrono::steady_clock::now() + std::chrono::seconds(lock_seconds);
+    }
+}
+
+void reset_lockout(api::lockout_state& state) {
+    state.fails = 0;
+    state.locked_until = std::chrono::steady_clock::time_point{};
+}
+
+std::string expiry_remaining(const std::string& expiry) {
+    const std::time_t expiry_time = static_cast<std::time_t>(std::strtoll(expiry.c_str(), nullptr, 10));
+    const std::time_t now = std::time(nullptr);
+
+    if (expiry_time <= 0 || expiry_time <= now)
+        return "expired";
+
+    long long remaining = static_cast<long long>(expiry_time - now);
+    const long long days = remaining / 86400;
+    remaining %= 86400;
+    const long long hours = remaining / 3600;
+    remaining %= 3600;
+    const long long minutes = remaining / 60;
+    const long long seconds = remaining % 60;
+
+    std::string result;
+    if (days > 0)
+        result += std::to_string(days) + "d ";
+    if (days > 0 || hours > 0)
+        result += std::to_string(hours) + "h ";
+    if (days > 0 || hours > 0 || minutes > 0)
+        result += std::to_string(minutes) + "m ";
+    result += std::to_string(seconds) + "s";
+    return result;
+}
 
 bool read_int(int& out) {
     std::cin >> out;
@@ -88,16 +158,16 @@ void print_user_data(const api& app) {
     std::cout << skCrypt("\n IP address: ") << app.user_data.ip;
     std::cout << skCrypt("\n Hardware-Id: ") << app.user_data.hwid;
     std::cout << skCrypt("\n Create date: ")
-              << tm_to_readable_time(utils::timet_to_tm(utils::string_to_timet(app.user_data.createdate)));
+              << tm_to_readable_time(timestamp_to_tm(app.user_data.createdate));
     std::cout << skCrypt("\n Last login: ")
-              << tm_to_readable_time(utils::timet_to_tm(utils::string_to_timet(app.user_data.lastlogin)));
+              << tm_to_readable_time(timestamp_to_tm(app.user_data.lastlogin));
     std::cout << skCrypt("\n Subscription(s): ");
 
     for (size_t i = 0; i < app.user_data.subscriptions.size(); i++) {
         const auto& sub = app.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ")
-                  << tm_to_readable_time(utils::timet_to_tm(utils::string_to_timet(sub.expiry)));
+                  << tm_to_readable_time(timestamp_to_tm(sub.expiry));
         std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")");
     }
 }
@@ -128,17 +198,17 @@ int main()
     if (!KeyAuthApp.response.success)
     {
         std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
-        KeyAuthApp.init_fail_delay();
+        init_fail_delay();
         exit(1);
     }
 
     const std::string ownerid_copy = ownerid; // preserve for auth check thread. -nigel
     name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear();
 
-    if (api::lockout_active(login_guard)) {
+    if (lockout_active(login_guard)) {
         std::cout << skCrypt("\n Status: Too many attempts. Try again in ")
-                  << api::lockout_remaining_ms(login_guard) << skCrypt(" ms.");
-        KeyAuthApp.close_delay();
+                  << lockout_remaining_ms(login_guard) << skCrypt(" ms.");
+        close_delay();
         return 0;
     }
 
@@ -157,7 +227,7 @@ int main()
         if (!read_int(option))
         {
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-            KeyAuthApp.bad_input_delay();
+            bad_input_delay();
             exit(1);
         }
 
@@ -193,7 +263,7 @@ int main()
             break;
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
-            KeyAuthApp.bad_input_delay();
+            bad_input_delay();
             exit(1);
         }
     }
@@ -220,20 +290,20 @@ int main()
             if (!KeyAuthApp.response.success) {
                 std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
                 std::remove(api::kSavePath);
-                api::record_login_fail(login_guard);
-                KeyAuthApp.init_fail_delay();
+                record_login_fail(login_guard);
+                init_fail_delay();
                 exit(1);
             }
         }
         else {
             std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
             std::remove(api::kSavePath);
-            api::record_login_fail(login_guard);
-            KeyAuthApp.init_fail_delay();
+            record_login_fail(login_guard);
+            init_fail_delay();
             exit(1);
         }
     }
-    api::reset_lockout(login_guard);
+    reset_lockout(login_guard);
 
     std::cout << skCrypt("\n\n Save credentials to disk for auto-login? [y/N]: ");
     const char save_choice = read_choice('n'); // read once to avoid double input. -nigel
@@ -267,7 +337,7 @@ int main()
 
     std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
     std::cout << skCrypt("\n\n Closing in five seconds...");
-    KeyAuthApp.close_delay();
+    close_delay();
 
     return 0;
 }
@@ -296,5 +366,5 @@ std::string tm_to_readable_time(std::tm ctx) {
 }
 
 std::string remaining_until(const std::string& timestamp) {
-    return api::expiry_remaining(timestamp);
+    return expiry_remaining(timestamp);
 }
