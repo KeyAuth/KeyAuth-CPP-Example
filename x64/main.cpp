@@ -1,5 +1,5 @@
-#include <Windows.h>
 #include "auth.hpp"
+#include <Windows.h>
 #include "auth_guard.hpp"
 #include "skStr.h"
 #include "storage.hpp"
@@ -24,6 +24,10 @@ std::tm timestamp_to_tm(const std::string& timestamp) {
     std::tm result{};
     localtime_s(&result, &raw);
     return result;
+}
+
+std::string readable_timestamp(const std::string& value) {
+    return value.empty() ? "Not supplied" : tm_to_readable_time(timestamp_to_tm(value));
 }
 
 void init_fail_delay() {
@@ -158,16 +162,16 @@ void print_user_data(const api& app) {
     std::cout << skCrypt("\n IP address: ") << app.user_data.ip;
     std::cout << skCrypt("\n Hardware-Id: ") << app.user_data.hwid;
     std::cout << skCrypt("\n Create date: ")
-              << tm_to_readable_time(timestamp_to_tm(app.user_data.createdate));
+              << readable_timestamp(app.user_data.createdate);
     std::cout << skCrypt("\n Last login: ")
-              << tm_to_readable_time(timestamp_to_tm(app.user_data.lastlogin));
+              << readable_timestamp(app.user_data.lastlogin);
     std::cout << skCrypt("\n Subscription(s): ");
 
     for (size_t i = 0; i < app.user_data.subscriptions.size(); i++) {
         const auto& sub = app.user_data.subscriptions.at(i);
         std::cout << skCrypt("\n name: ") << sub.name;
         std::cout << skCrypt(" : expiry: ")
-                  << tm_to_readable_time(timestamp_to_tm(sub.expiry));
+                  << readable_timestamp(sub.expiry);
         std::cout << skCrypt(" (") << remaining_until(sub.expiry) << skCrypt(")");
     }
 }
@@ -175,7 +179,6 @@ void print_user_data(const api& app) {
 
 const std::string compilation_date = (std::string)skCrypt(__DATE__);
 const std::string compilation_time = (std::string)skCrypt(__TIME__);
-void sessionStatus();
 
 // copy and paste from https://keyauth.cc/app/ and replace these string variables
 // Please watch tutorial HERE https://www.youtube.com/watch?v=5x4YkTmFH-U
@@ -188,12 +191,17 @@ std::string path = skCrypt("").decrypt(); // (OPTIONAL) see tutorial here https:
 api KeyAuthApp(name, ownerid, version, url, path);
 api::lockout_state login_guard{};
 
-int main()
+int main() try
 {
     std::string consoleTitle = skCrypt("Loader - Built at:  ").decrypt() + compilation_date + " " + compilation_time;
     SetConsoleTitleA(consoleTitle.c_str());
     std::cout << skCrypt("\n\n Connecting..");
 
+    KeyAuthApp.enable_secure_strings();
+    for (std::string* setting : {&name, &ownerid, &version, &url, &path}) {
+        if (!setting->empty()) SecureZeroMemory(setting->data(), setting->size());
+        setting->clear();
+    }
     KeyAuthApp.init();
     if (!KeyAuthApp.response.success)
     {
@@ -202,7 +210,6 @@ int main()
         exit(1);
     }
 
-    const std::string ownerid_copy = ownerid; // preserve for auth check thread. -nigel
     name.clear(); ownerid.clear(); version.clear(); url.clear(); path.clear();
 
     if (lockout_active(login_guard)) {
@@ -216,12 +223,15 @@ int main()
     std::string password;
     std::string key;
     std::string TfaCode;
+    std::string email;
+    bool email_password = false;
+    bool passwordless = false;
 
     const bool used_saved_creds = try_auto_login(KeyAuthApp, username, password, key);
 
     if (!used_saved_creds)
     {
-        std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n\n Choose option: ");
+        std::cout << skCrypt("\n\n [1] Login\n [2] Register\n [3] Upgrade\n [4] License key only\n [5] Email and password\n [6] Email verification code\n [7] Email magic link\n\n Choose option: ");
 
         int option = 0;
         if (!read_int(option))
@@ -255,11 +265,47 @@ int main()
             std::cout << skCrypt("\n Enter license: ");
             std::cin >> key;
             KeyAuthApp.upgrade(username, key);
+            if (KeyAuthApp.response.success) {
+                std::cout << skCrypt("\n License upgraded. Log in to start a session.");
+                return 0;
+            }
             break;
         case 4:
             std::cout << skCrypt("\n Enter license: ");
             std::cin >> key;
             KeyAuthApp.license(key, "");
+            break;
+        case 5:
+            email_password = true;
+            std::cout << "\n Email: ";
+            std::cin >> email;
+            std::cout << "\n Password: ";
+            std::cin >> password;
+            KeyAuthApp.login_email(email, password);
+            break;
+        case 6:
+            passwordless = true;
+            std::cout << "\n Email: ";
+            std::cin >> email;
+            KeyAuthApp.email_otp_send(email);
+            if (!KeyAuthApp.response.success) break;
+            std::cout << "\n Enter the six-digit code from your email: ";
+            std::cin >> TfaCode;
+            KeyAuthApp.email_otp_verify(email, TfaCode);
+            break;
+        case 7:
+            passwordless = true;
+            std::cout << "\n Email: ";
+            std::cin >> email;
+            KeyAuthApp.magic_link_send(email);
+            if (!KeyAuthApp.response.success) break;
+            std::cout << "\n Open the link in your email. Waiting for approval (up to 15 minutes)...";
+            while (KeyAuthApp.magic_link_pending()) {
+                if (KeyAuthApp.magic_link_check()) break;
+                std::this_thread::sleep_for(std::chrono::seconds(3));
+            }
+            if (!KeyAuthApp.response.success && !KeyAuthApp.magic_link_pending())
+                KeyAuthApp.response.message = "Magic link expired. Request a new link.";
             break;
         default:
             std::cout << skCrypt("\n\n Status: Failure: Invalid Selection");
@@ -273,8 +319,13 @@ int main()
 
     if (!KeyAuthApp.response.success)
     {
-        if (KeyAuthApp.response.message == "2FA code required.") {
-            if (username.empty() || password.empty()) {
+        if (!passwordless && KeyAuthApp.response.message == "2FA code required.") {
+            if (email_password) {
+                std::cout << "\n Enter your six-digit authenticator code: ";
+                std::cin >> TfaCode;
+                KeyAuthApp.login_email(email, password, TfaCode);
+            }
+            else if (username.empty() || password.empty()) {
                 std::cout << skCrypt("\n Your account has 2FA enabled, please enter 6-digit code:");
                 std::cin >> TfaCode;
                 KeyAuthApp.license(key, TfaCode);
@@ -305,22 +356,24 @@ int main()
     }
     reset_lockout(login_guard);
 
-    std::cout << skCrypt("\n\n Save credentials to disk for auto-login? [y/N]: ");
-    const char save_choice = read_choice('n'); // read once to avoid double input. -nigel
-    const bool save_creds = (save_choice == 'y' || save_choice == 'Y');
-    save_or_clear_creds(save_creds, username, password, key);
-    if (save_creds)
-        std::cout << skCrypt("Successfully Created File For Auto Login");
+    if (!passwordless && !email_password) {
+        std::cout << skCrypt("\n\n Save credentials to disk for auto-login? [y/N]: ");
+        const char save_choice = read_choice('n'); // read once to avoid double input. -nigel
+        const bool save_creds = (save_choice == 'y' || save_choice == 'Y');
+        save_or_clear_creds(save_creds, username, password, key);
+        if (save_creds)
+            std::cout << skCrypt("Successfully Created File For Auto Login");
 
-    /*
-    * Do NOT remove this checkAuthenticated() function.
-    * It protects you from cracking, it would be NOT be a good idea to remove it
-    */
-    std::thread run(checkAuthenticated, ownerid_copy);
-    // do NOT remove checkAuthenticated(), it MUST stay for security reasons
-    std::thread check(sessionStatus); // do NOT remove this function either.
-    run.detach(); // detach immediately to avoid terminate on early exits. -nigel
-    check.detach(); // detach immediately to avoid terminate on early exits. -nigel
+    }
+
+    for (std::string* credential : {&username, &password, &key, &TfaCode, &email}) {
+        if (!credential->empty()) SecureZeroMemory(credential->data(), credential->size());
+        credential->clear();
+    }
+    if (!checkAuthenticated(KeyAuthApp)) {
+        std::cout << skCrypt("\n Status: ") << KeyAuthApp.response.message;
+        return 1;
+    }
 
     //enable 2FA 
     // KeyAuthApp.enable2fa(); you will need to ask for the code
@@ -333,6 +386,7 @@ int main()
     if (KeyAuthApp.user_data.username.empty())
         exit(10);
 
+    if (!KeyAuthApp.authenticated()) return 1;
     print_user_data(KeyAuthApp);
 
     std::cout << skCrypt("\n\n Status: ") << KeyAuthApp.response.message;
@@ -341,22 +395,9 @@ int main()
 
     return 0;
 }
-
-void sessionStatus() {
-    KeyAuthApp.check(true); // do NOT specify true usually, it is slower and will get you blocked from API
-    if (!KeyAuthApp.response.success) {
-        return; // allow clean exit from thread. -nigel
-    }
-
-    if (KeyAuthApp.response.isPaid) {
-        while (true) {
-            Sleep(20000); // this MUST be included or else you get blocked from API
-            KeyAuthApp.check();
-            if (!KeyAuthApp.response.success) {
-                return; // allow clean exit from thread. -nigel
-            }
-        }
-    }
+catch (const std::exception& error) {
+    std::cerr << "\n Request failed: " << error.what() << '\n';
+    return 1;
 }
 
 std::string tm_to_readable_time(std::tm ctx) {
