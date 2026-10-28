@@ -1,0 +1,110 @@
+name: Build C++ example
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: Optional public KeyAuth application name
+        required: false
+        type: string
+      owner_id:
+        description: Optional public KeyAuth owner ID
+        required: false
+        type: string
+      app_version:
+        description: Optional application version
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  KEYAUTH_LIBRARY_COMMIT: e345db830576b7a14cf1a818ffd4a3b368fb228b
+  KEYAUTH_LIBRARY_SHA256: 93583a96377956b0092b6c037c5c258fc73881e694f57cff305ec658d62a5ab4
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ELF-Nigel/keyauth-cpp-library-1.3API
+          ref: ${{ env.KEYAUTH_LIBRARY_COMMIT }}
+          path: .keyauth-source
+          persist-credentials: false
+
+      - name: Verify paired library
+        shell: pwsh
+        run: |
+          $expected = [IO.File]::ReadAllText('.keyauth-source/auth.hpp').Replace("`r`n", "`n")
+          $actual = [IO.File]::ReadAllText('x64/lib/auth.hpp').Replace("`r`n", "`n")
+          if ($actual -cne $expected) { throw 'Bundled header does not match the selected library source.' }
+          $digest = (Get-FileHash -LiteralPath 'x64/library_x64.lib' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -cne $env:KEYAUTH_LIBRARY_SHA256) { throw 'Bundled library does not match the verified build.' }
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Apply optional public application settings
+        shell: pwsh
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          OWNER_ID: ${{ inputs.owner_id }}
+          APP_VERSION: ${{ inputs.app_version }}
+        run: |
+          if ([bool]$env:APP_NAME -ne [bool]$env:OWNER_ID) {
+            throw 'Provide both application name and owner ID, or leave both blank.'
+          }
+          if ($env:OWNER_ID -and $env:OWNER_ID.Length -ne 10) {
+            throw 'Owner ID must contain 10 characters.'
+          }
+          $source = Get-Content -LiteralPath 'x64/main.cpp' -Raw
+          $settings = @{name = $env:APP_NAME; ownerid = $env:OWNER_ID; version = $env:APP_VERSION}
+          foreach ($entry in $settings.GetEnumerator()) {
+            if ([string]::IsNullOrEmpty($entry.Value)) { continue }
+            $encoded = ([Text.Encoding]::UTF8.GetBytes($entry.Value) | ForEach-Object { '\x{0:x2}' -f $_ }) -join ''
+            $replacement = 'std::string ' + $entry.Key + ' = skCrypt("' + $encoded + '").decrypt();'
+            $pattern = '(?m)^std::string ' + $entry.Key + ' = skCrypt\("[^"\r\n]*"\)\.decrypt\(\);'
+            if (-not [regex]::IsMatch($source, $pattern)) { throw 'Application setting was not found.' }
+            $source = [regex]::Replace($source, $pattern, [Text.RegularExpressions.MatchEvaluator]{param($match) $replacement})
+          }
+          Set-Content -LiteralPath 'x64/main.cpp' -Value $source -NoNewline
+
+      - name: Build Release x64
+        working-directory: x64
+        run: msbuild example.vcxproj /t:Build /p:Configuration=Release /p:Platform=x64 /m
+
+      - name: Verify executable mitigations
+        shell: pwsh
+        run: |
+          $installation = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $dumpbin = Get-ChildItem -Path (Join-Path $installation 'VC/Tools/MSVC/*/bin/Hostx64/x64/dumpbin.exe') | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $dumpbin) { throw 'Executable inspection tool was not found.' }
+          $headers = (& $dumpbin.FullName /headers /loadconfig 'x64/x64/Release/example.exe') -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw 'Executable inspection failed.' }
+          foreach ($required in @('CF instrumented', 'FID table present', 'Dynamic base', 'NX compatible', 'High Entropy Virtual Addresses')) {
+            if ($headers -notmatch [regex]::Escape($required)) { throw "Missing executable mitigation: $required" }
+          }
+
+      - name: Package runnable example
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path build-output -Force | Out-Null
+          Copy-Item -LiteralPath 'x64/x64/Release/example.exe' -Destination build-output
+          $installation = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $crt = Get-ChildItem -Path (Join-Path $installation 'VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT') -Directory | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $crt) { throw 'Visual C++ runtime files were not found.' }
+          Get-ChildItem -LiteralPath $crt.FullName -Filter '*.dll' | Copy-Item -Destination build-output
+          Get-FileHash -LiteralPath 'build-output/example.exe' -Algorithm SHA256 | ForEach-Object { $_.Hash.ToLowerInvariant() + '  example.exe' } | Set-Content -LiteralPath 'build-output/SHA256SUMS.txt'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KeyAuth-CPP-Example-x64
+          path: build-output/
+          if-no-files-found: error
+          retention-days: 30

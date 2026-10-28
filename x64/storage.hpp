@@ -16,7 +16,7 @@ inline std::string ReadFromJson(const std::string& path, const std::string& sect
 	if (!file.good())
 		return "";
 	json data = json::parse(file, nullptr, false);
-	if (data.is_discarded() || !data.contains(section))
+	if (data.is_discarded() || !data.is_object() || !data.contains(section) || !data[section].is_string())
 		return "";
 	return data[section];
 }
